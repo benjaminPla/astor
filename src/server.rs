@@ -16,10 +16,11 @@
 //!
 //! # Keep-alive
 //!
-//! HTTP/1.1 defaults to persistent connections. nginx configured with
-//! `proxy_http_version 1.1` and `proxy_set_header Connection ""` reuses the
-//! same TCP connection for multiple requests — `serve_connection` loops until
-//! it sees `Connection: close` or EOF.
+//! Connection lifetime is managed entirely by nginx, not tsu. nginx configured
+//! with `proxy_http_version 1.1` and `proxy_set_header Connection ""` reuses
+//! TCP connections to tsu based on its own `keepalive_timeout` and
+//! `keepalive_requests` upstream settings. tsu loops until nginx closes the
+//! connection (EOF) — it does not inspect the `Connection` header.
 //!
 //! # Graceful shutdown
 //!
@@ -97,7 +98,11 @@ impl Server {
 
 // ── Connection handler ────────────────────────────────────────────────────────
 
-/// Serves all requests on one TCP connection (keep-alive loop).
+/// Serves all requests on one TCP connection.
+///
+/// Loops until nginx closes the connection (EOF). nginx controls connection
+/// lifetime via `keepalive_timeout` and `keepalive_requests` in the upstream
+/// block — tsu never inspects the `Connection` header.
 async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), Error> {
     let (read_half, mut write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half);
@@ -129,12 +134,6 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         // ── Body ──────────────────────────────────────────────────────────────
         let body = read_body(&mut reader, &headers).await?;
 
-        // ── Keep-alive check (before headers are moved into Request) ──────────
-        let keep_alive = !headers.iter()
-            .find(|(k, _)| k.eq_ignore_ascii_case("connection"))
-            .map(|(_, v)| v.eq_ignore_ascii_case("close"))
-            .unwrap_or(false);
-
         // ── Dispatch ──────────────────────────────────────────────────────────
         let response = match router.lookup(&method, &path) {
             Some((handler, params)) => {
@@ -144,8 +143,6 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         };
 
         response.write_to(&mut write_half).await?;
-
-        if !keep_alive { break; }
     }
 
     Ok(())

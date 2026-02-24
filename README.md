@@ -23,7 +23,7 @@ When nginx (or ingress-nginx) sits in front of your service, it already covers:
 | Concern | How |
 |---|---|
 | Radix-tree routing | [`matchit`] — O(path-length) lookup |
-| Async I/O | tokio + hyper 1 |
+| Async I/O | tokio |
 | Graceful shutdown | SIGTERM + Ctrl-C; waits for in-flight requests |
 | Health probes | Built-in `/healthz` and `/readyz` |
 | Structured logging | [`tracing`] crate |
@@ -155,19 +155,44 @@ curl http://localhost:3000/
 
 See [`nginx/nginx.conf`](nginx/nginx.conf) for a production-ready configuration.
 
-Key settings:
+**How keep-alive works:**
+
+```
+client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► tsu
+```
+
+nginx maintains a pool of idle TCP connections to tsu. Requests are served
+over those connections without a TCP handshake per request. tsu loops on each
+connection until nginx closes it. tsu never manages connection lifetime itself.
+
+**Required proxy settings:**
 
 ```nginx
 proxy_http_version 1.1;
-proxy_set_header   Connection "";   # enables keep-alive to the backend
+proxy_set_header   Connection "";   # clears nginx's default "close", enabling keep-alive
 client_max_body_size 10m;           # enforced by nginx, not tsu
 
 # REQUIRED — do not set to off.
-# tsu only reads Content-Length-framed bodies. proxy_buffering on (the nginx
-# default) guarantees nginx buffers the full request body and forwards it with
-# Content-Length. Setting it to off allows chunked bodies that tsu cannot parse.
+# tsu only reads Content-Length-framed bodies. proxy_buffering on (the default)
+# guarantees nginx buffers the full request body before forwarding it.
 proxy_buffering on;
 ```
+
+**Tuning the upstream connection pool** (in the `upstream` block):
+
+```nginx
+upstream tsu_backend {
+    server 127.0.0.1:3000;
+
+    keepalive 64;           # idle connections per worker — raise if you see TCP churn
+    keepalive_requests 1000; # recycle connection after N requests (default 1000)
+    keepalive_timeout  60s;  # close idle connection after this long (default 60s)
+}
+```
+
+Rule of thumb for `keepalive`: `(expected RPS / nginx workers) × avg request duration (s)`.
+Too low → pool exhausts under load and new TCP connections are opened.
+Too high → idle file descriptors accumulate across workers.
 
 ### On Kubernetes
 

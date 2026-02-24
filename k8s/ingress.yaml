@@ -21,9 +21,25 @@ metadata:
     # tsu only reads Content-Length-framed bodies; chunked bodies will break it.
     nginx.ingress.kubernetes.io/proxy-buffering: "on"
 
-    # ── Keep-alive connections from ingress to pods ───────────────────────────
-    # Eliminates per-request TCP handshake overhead to tsu pods.
+    # ── Keep-alive connections from ingress to pods ──────────────────────────
+    #
+    # How it works:
+    #   ingress-nginx keeps a pool of idle TCP connections to tsu pods.
+    #   Requests are multiplexed over these connections instead of opening a
+    #   new TCP connection per request. tsu loops on the connection until
+    #   ingress-nginx closes it based on the timeout/requests limits below.
+    #
+    # upstream-keepalive-connections: idle connections kept per nginx worker.
+    #   Rule of thumb: (expected RPS / worker count) × avg request duration.
+    #   Too low  → pool exhausted, new TCP connections opened under load.
+    #   Too high → idle FDs wasted across all pods.
     nginx.ingress.kubernetes.io/upstream-keepalive-connections: "64"
+
+    # upstream-keepalive-requests: max requests per connection before recycling.
+    nginx.ingress.kubernetes.io/upstream-keepalive-requests: "1000"
+
+    # upstream-keepalive-timeout: seconds an idle connection stays in the pool.
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
 
     # ── TLS / HTTPS ───────────────────────────────────────────────────────────
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
