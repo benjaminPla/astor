@@ -15,7 +15,7 @@
 //!   curl http://localhost:3000/healthz
 //!   curl http://localhost:3000/readyz
 
-use tsu::{ContentType, Request, Response, Router, Server, health};
+use tsu::{ContentType, Request, Response, Router, Server, Status, health};
 
 #[tokio::main]
 async fn main() {
@@ -50,22 +50,22 @@ async fn get_user(req: Request) -> Response {
 // ── POST /users ───────────────────────────────────────────────────────────────
 //
 // req.body() is &[u8]. Parse with serde_json::from_slice, simd-json, etc.
-// tsu does not touch the bytes.
 // 201 Created + Location header.
+//
+// Status enum — self-documenting; great for handlers where intent matters.
 async fn create_user(req: Request) -> Response {
     if req.body().is_empty() {
-        return Response::status(400);
+        return Response::status(Status::BadRequest);  // enum
     }
-    // Real app: let input: CreateUser = serde_json::from_slice(req.body()).unwrap();
     Response::builder()
-        .status(201)
+        .status(Status::Created)
         .header("location", "/users/99")
         .json(r#"{"id":"99","name":"new_user"}"#.to_owned().into_bytes())
 }
 
 // ── PATCH /users/:id ─────────────────────────────────────────────────────────
 //
-// 200 with updated resource. Builder with no extra headers — same as shortcut.
+// 200 with updated resource.
 async fn update_user(req: Request) -> Response {
     let id = req.param("id").unwrap_or("unknown");
     Response::json(format!(r#"{{"id":"{id}","name":"updated"}}"#).into_bytes())
@@ -73,9 +73,9 @@ async fn update_user(req: Request) -> Response {
 
 // ── DELETE /users/:id ─────────────────────────────────────────────────────────
 //
-// 204 No Content — no body, no content-type.
-async fn delete_user(_req: Request) -> Response {
-    Response::status(204)
+// Handler returns Status directly — no Response construction needed.
+async fn delete_user(_req: Request) -> Status {
+    Status::NoContent
 }
 
 // ── GET /xml ──────────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ async fn delete_user(_req: Request) -> Response {
 // Same pattern works for Html, Csv, Pdf, OctetStream, MsgPack, EventStream.
 async fn xml_response(_req: Request) -> Response {
     Response::builder()
-        .status(200)
+        .status(Status::Ok)
         .bytes(ContentType::Xml, b"<users><user id=\"1\"/></users>".to_vec())
 }
 
@@ -93,7 +93,7 @@ async fn xml_response(_req: Request) -> Response {
 // 301 redirect — custom status + header, no body.
 async fn redirect(_req: Request) -> Response {
     Response::builder()
-        .status(301)
+        .status(Status::MovedPermanently)
         .header("location", "/users/1")
         .no_body()
 }

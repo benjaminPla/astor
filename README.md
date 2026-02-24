@@ -86,9 +86,30 @@ async fn get_repo(req: Request) -> Response {
 
 ## Responses
 
+### Status codes
+
+All status codes go through `Status`. Every IANA-registered code is a variant:
+
+```rust
+use tsu::Status;
+
+Status::Ok                     // 200
+Status::Created                // 201
+Status::NoContent              // 204
+Status::BadRequest             // 400
+Status::Unauthorized           // 401
+Status::NotFound               // 404
+Status::UnprocessableContent   // 422
+Status::TooManyRequests        // 429
+Status::InternalServerError    // 500
+Status::ServiceUnavailable     // 503
+```
+
 ### Shortcuts — `200 OK`, no custom headers
 
 ```rust
+use tsu::{Response, Status};
+
 // JSON — pass bytes from your serialiser directly, zero extra allocation.
 // serde_json:  Response::json(serde_json::to_vec(&val).unwrap())
 // hand-built:  Response::json(format!(r#"{{"id":{id}}}"#).into_bytes())
@@ -97,33 +118,33 @@ Response::json(bytes)
 // Plain text
 Response::text("hello")
 
-// No body — 204, 404, etc.
-Response::status(204)
-Response::status(404)
+// No body
+Response::status(Status::NoContent)
+Response::status(Status::NotFound)
 ```
 
 ### Builder — custom status or extra headers
 
-The builder always terminates with a typed method. You always know what you're sending.
+The builder always terminates with a typed body method. You always know what you're sending.
 
 ```rust
-use tsu::{Response, ContentType};
+use tsu::{Response, ContentType, Status};
 
 // 201 Created with Location header, JSON body
 Response::builder()
-    .status(201)
+    .status(Status::Created)
     .header("location", "/users/42")
     .json(bytes)
 
 // 301 redirect — no body
 Response::builder()
-    .status(301)
+    .status(Status::MovedPermanently)
     .header("location", "/new-path")
     .no_body()
 
 // Any content-type via the ContentType enum
 Response::builder()
-    .status(200)
+    .status(Status::Ok)
     .bytes(ContentType::Xml, b"<users/>".to_vec())
 ```
 
@@ -149,7 +170,7 @@ Response::builder()
 ```rust
 async fn create_user(req: Request) -> Response {
     if req.body().is_empty() {
-        return Response::status(400);
+        return Response::status(Status::BadRequest);
     }
     let user: User = serde_json::from_slice(req.body()).unwrap();
     Response::json(serde_json::to_vec(&user).unwrap())
@@ -163,7 +184,7 @@ async fn create_user(req: Request) -> Response {
 Implement `IntoResponse` on your own types to return them directly from handlers without constructing `Response` manually every time:
 
 ```rust
-use tsu::{IntoResponse, Response};
+use tsu::{IntoResponse, Response, Status};
 use serde::Serialize;
 
 struct Json<T: Serialize>(T);
@@ -172,7 +193,7 @@ impl<T: Serialize> IntoResponse for Json<T> {
     fn into_response(self) -> Response {
         match serde_json::to_vec(&self.0) {
             Ok(bytes) => Response::json(bytes),
-            Err(_)    => Response::status(500),
+            Err(_)    => Response::status(Status::InternalServerError),
         }
     }
 }
@@ -183,7 +204,12 @@ async fn get_user(_req: Request) -> Json<User> {
 }
 ```
 
-Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `u16` (status code).
+Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `Status`.
+
+```rust
+// Return Status directly from a handler — no Response construction needed
+async fn delete_user(_req: Request) -> Status { Status::NoContent }
+```
 
 ---
 
@@ -204,7 +230,7 @@ async fn readiness(_req: Request) -> Response {
     if db_pool_is_healthy().await {
         Response::text("ready")
     } else {
-        Response::status(503)
+        Response::status(Status::ServiceUnavailable)
     }
 }
 ```

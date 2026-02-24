@@ -2,12 +2,11 @@
 
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
+use crate::status::Status;
+
 // ── ContentType ───────────────────────────────────────────────────────────────
 
 /// Common content-type values for use with [`ResponseBuilder::bytes`].
-///
-/// Covers the types used in typical API and web services. For anything not
-/// listed here, use [`ResponseBuilder::bytes`] with a raw string, or open a PR.
 pub enum ContentType {
     Json,         // application/json
     Text,         // text/plain; charset=utf-8
@@ -45,27 +44,25 @@ impl ContentType {
 /// # Shortcuts (200 OK, no custom headers needed)
 ///
 /// ```rust
-/// use tsu::Response;
+/// use tsu::{Response, Status};
 ///
-/// Response::json(b r#"{"id":1}"#.to_vec());          // application/json
-/// Response::text("hello");                            // text/plain
-/// Response::status(204);                              // no body
+/// Response::json(br#"{"id":1}"#.to_vec());
+/// Response::text("hello");
+/// Response::status(Status::NoContent);
 /// ```
 ///
 /// # Builder (custom status or headers)
 ///
 /// ```rust
-/// use tsu::{Response, ContentType};
+/// use tsu::{Response, ContentType, Status};
 ///
-/// // 201 Created with a Location header, JSON body
 /// Response::builder()
-///     .status(201)
+///     .status(Status::Created)
 ///     .header("location", "/users/42")
-///     .json(b r#"{"id":42}"#.to_vec());
+///     .json(br#"{"id":42}"#.to_vec());
 ///
-/// // Any content-type via the enum
 /// Response::builder()
-///     .status(200)
+///     .status(Status::Ok)
 ///     .bytes(ContentType::Xml, b"<ok/>".to_vec());
 /// ```
 pub struct Response {
@@ -90,19 +87,18 @@ impl Response {
     }
 
     /// Response with no body.
-    pub fn status(code: u16) -> Self {
-        Self { status: code, headers: Vec::new(), body: Vec::new() }
+    pub fn status(code: Status) -> Self {
+        Self { status: code.into(), headers: Vec::new(), body: Vec::new() }
     }
 
     /// Builder for responses that need a custom status or extra headers.
     pub fn builder() -> ResponseBuilder {
-        ResponseBuilder { status: 200, headers: Vec::new() }
+        ResponseBuilder { status: Status::Ok.into(), headers: Vec::new() }
     }
 
-    /// Internal primitive used by all constructors.
     fn bytes_raw(content_type: &str, body: Vec<u8>) -> Self {
         Self {
-            status: 200,
+            status: Status::Ok.into(),
             headers: vec![("content-type".to_owned(), content_type.to_owned())],
             body,
         }
@@ -131,7 +127,7 @@ impl Response {
 
 /// Fluent builder for [`Response`].
 ///
-/// Obtain via [`Response::builder()`]. Defaults to status `200`.
+/// Obtain via [`Response::builder()`]. Defaults to `Status::Ok` (200).
 /// Terminated by a typed body method — you always know what you're sending.
 pub struct ResponseBuilder {
     status: u16,
@@ -139,8 +135,8 @@ pub struct ResponseBuilder {
 }
 
 impl ResponseBuilder {
-    pub fn status(mut self, code: u16) -> Self {
-        self.status = code;
+    pub fn status(mut self, code: Status) -> Self {
+        self.status = code.into();
         self
     }
 
@@ -164,7 +160,7 @@ impl ResponseBuilder {
         self.finish(content_type.as_str(), body)
     }
 
-    /// Terminate with no body (e.g. 204 No Content, 301 redirect).
+    /// Terminate with no body (e.g. `Status::NoContent`, `Status::MovedPermanently`).
     pub fn no_body(self) -> Response {
         Response { status: self.status, headers: self.headers, body: Vec::new() }
     }
@@ -185,7 +181,7 @@ impl ResponseBuilder {
 /// # Example — typed `Json<T>` wrapper with serde
 ///
 /// ```rust,ignore
-/// use tsu::{IntoResponse, Response};
+/// use tsu::{IntoResponse, Response, Status};
 /// use serde::Serialize;
 ///
 /// struct Json<T: Serialize>(T);
@@ -194,7 +190,7 @@ impl ResponseBuilder {
 ///     fn into_response(self) -> Response {
 ///         match serde_json::to_vec(&self.0) {
 ///             Ok(bytes) => Response::json(bytes),
-///             Err(_)    => Response::status(500),
+///             Err(_)    => Response::status(Status::InternalServerError),
 ///         }
 ///     }
 /// }
@@ -219,8 +215,9 @@ impl IntoResponse for String {
     fn into_response(self) -> Response { Response::text(self) }
 }
 
-/// Return a bare status code from a handler: `return 404u16`
-impl IntoResponse for u16 {
+
+/// Return a [`Status`] directly from a handler: `return Status::NotFound`
+impl IntoResponse for Status {
     fn into_response(self) -> Response { Response::status(self) }
 }
 
@@ -228,26 +225,67 @@ impl IntoResponse for u16 {
 
 fn status_reason(code: u16) -> &'static str {
     match code {
+        100 => "Continue",
+        101 => "Switching Protocols",
+        102 => "Processing",
+        103 => "Early Hints",
         200 => "OK",
         201 => "Created",
+        202 => "Accepted",
+        203 => "Non-Authoritative Information",
         204 => "No Content",
+        205 => "Reset Content",
+        206 => "Partial Content",
+        207 => "Multi-Status",
+        208 => "Already Reported",
+        226 => "IM Used",
+        300 => "Multiple Choices",
         301 => "Moved Permanently",
         302 => "Found",
+        303 => "See Other",
         304 => "Not Modified",
+        307 => "Temporary Redirect",
+        308 => "Permanent Redirect",
         400 => "Bad Request",
         401 => "Unauthorized",
+        402 => "Payment Required",
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        406 => "Not Acceptable",
+        407 => "Proxy Authentication Required",
         408 => "Request Timeout",
         409 => "Conflict",
         410 => "Gone",
-        422 => "Unprocessable Entity",
+        411 => "Length Required",
+        412 => "Precondition Failed",
+        413 => "Content Too Large",
+        414 => "URI Too Long",
+        415 => "Unsupported Media Type",
+        416 => "Range Not Satisfiable",
+        417 => "Expectation Failed",
+        418 => "I'm a Teapot",
+        421 => "Misdirected Request",
+        422 => "Unprocessable Content",
+        423 => "Locked",
+        424 => "Failed Dependency",
+        425 => "Too Early",
+        426 => "Upgrade Required",
+        428 => "Precondition Required",
         429 => "Too Many Requests",
+        431 => "Request Header Fields Too Large",
+        451 => "Unavailable For Legal Reasons",
         500 => "Internal Server Error",
+        501 => "Not Implemented",
         502 => "Bad Gateway",
         503 => "Service Unavailable",
         504 => "Gateway Timeout",
+        505 => "HTTP Version Not Supported",
+        506 => "Variant Also Negotiates",
+        507 => "Insufficient Storage",
+        508 => "Loop Detected",
+        510 => "Not Extended",
+        511 => "Network Authentication Required",
         _   => "",
     }
 }

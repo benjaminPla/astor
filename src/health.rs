@@ -21,13 +21,13 @@
 //! dependency availability (database connections, downstream services, etc.):
 //!
 //! ```rust,no_run
-//! use tsu::{Request, Response};
+//! use tsu::{Request, Response, Status};
 //!
 //! async fn readiness(_req: Request) -> Response {
 //!     if dependencies_are_healthy().await {
 //!         Response::text("ready")
 //!     } else {
-//!         Response::status(503)
+//!         Response::status(Status::ServiceUnavailable)
 //!     }
 //! }
 //!

@@ -53,6 +53,7 @@ mod request;
 mod response;
 mod router;
 mod server;
+mod status;
 
 pub mod health;
 pub mod middleware;
@@ -61,5 +62,6 @@ pub use error::Error;
 pub use handler::Handler;
 pub use request::Request;
 pub use response::{ContentType, IntoResponse, Response};
+pub use status::Status;
 pub use router::Router;
 pub use server::Server;

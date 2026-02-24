@@ -40,6 +40,7 @@ use crate::error::Error;
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::Router;
+use crate::status::Status;
 
 pub struct Server {
     addr: SocketAddr,
@@ -139,7 +140,7 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
             Some((handler, params)) => {
                 handler.call(Request::new(method, path, headers, body, params)).await
             }
-            None => Response::status(404),
+            None => Response::status(Status::NotFound),
         };
 
         response.write_to(&mut write_half).await?;
