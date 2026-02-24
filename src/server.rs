@@ -1,25 +1,31 @@
 //! HTTP server and graceful shutdown.
 //!
-//! # Graceful shutdown and Kubernetes
+//! # Why no hyper / http crate
 //!
-//! When Kubernetes terminates a pod it sends **SIGTERM** and waits
-//! `terminationGracePeriodSeconds` (default 30 s) before sending SIGKILL.
+//! nginx validates all HTTP protocol correctness from untrusted clients before
+//! forwarding. The nginx → tsu connection is a trusted HTTP/1.1 stream, so a
+//! simple line-oriented parser over a tokio `BufReader` is enough.
 //!
-//! The server reacts by:
-//! 1. Immediately stopping `listener.accept()` — no new connections are made.
-//! 2. Letting every in-flight connection task run to completion.
-//! 3. Returning from [`Server::serve`], which lets `main` exit cleanly.
+//! # Keep-alive
 //!
-//! Set `terminationGracePeriodSeconds` in your pod spec to a value longer
-//! than your slowest request. 30 s is a reasonable default for most APIs.
+//! HTTP/1.1 defaults to persistent connections. nginx configured with
+//! `proxy_http_version 1.1` and `proxy_set_header Connection ""` reuses the
+//! same TCP connection for multiple requests — `serve_connection` loops until
+//! it sees `Connection: close` or EOF.
+//!
+//! # Graceful shutdown
+//!
+//! On SIGTERM/Ctrl-C the accept loop stops immediately. In-flight connection
+//! tasks run to completion before `serve` returns. Set
+//! `terminationGracePeriodSeconds` longer than your slowest request so k8s
+//! doesn't SIGKILL before drain finishes.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use hyper::service::service_fn;
-use hyper_util::rt::{TokioExecutor, TokioIo};
-use hyper_util::server::conn::auto::Builder as ConnBuilder;
-use tokio::net::TcpListener;
+use bytes::{Bytes, BytesMut};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
+use tokio::net::{TcpListener, TcpStream};
 use tracing::{error, info};
 
 use crate::error::Error;
@@ -27,58 +33,31 @@ use crate::request::Request;
 use crate::response::Response;
 use crate::router::Router;
 
-/// The HTTP server.
 pub struct Server {
     addr: SocketAddr,
 }
 
 impl Server {
-    /// Configures the server to bind to `addr` when [`serve`](Server::serve)
-    /// is called.
-    ///
-    /// # Panics
-    ///
     /// Panics if `addr` is not a valid `host:port` string.
-    ///
-    /// # Example
-    ///
-    /// ```rust,no_run
-    /// use tsu::Server;
-    /// let server = Server::bind("0.0.0.0:3000");
-    /// ```
     pub fn bind(addr: &str) -> Self {
         let addr: SocketAddr = addr.parse().expect("invalid socket address");
         Self { addr }
     }
 
-    /// Starts accepting connections and dispatching them through `router`.
-    ///
-    /// Returns only after a full graceful shutdown (SIGTERM or Ctrl-C,
-    /// followed by all in-flight requests completing).
+    /// Accepts connections and dispatches requests through `router`.
+    /// Returns after a full graceful shutdown.
     pub async fn serve(self, router: Router) -> Result<(), Error> {
         let listener = TcpListener::bind(self.addr).await?;
-
-        // Wrap router in Arc so it can be shared across concurrent connection
-        // tasks without copying the entire routing table.
         let router = Arc::new(router);
 
         info!(addr = %self.addr, "tsu listening");
 
-        // JoinSet tracks every spawned connection task so we can wait for
-        // them all to finish during graceful shutdown.
         let mut tasks = tokio::task::JoinSet::new();
-
-        // Pin the shutdown future so we can poll it in a loop.
-        // Futures in Rust must not move in memory after the first poll — that
-        // is what `Pin` enforces. `tokio::pin!` pins the future on the stack.
         let shutdown = shutdown_signal();
         tokio::pin!(shutdown);
 
         loop {
             tokio::select! {
-                // `biased` makes select! check arms top-to-bottom instead of
-                // randomly. We check shutdown first so a SIGTERM immediately
-                // stops accepting new connections, even if more are queued.
                 biased;
 
                 () = &mut shutdown => {
@@ -89,80 +68,136 @@ impl Server {
                 res = listener.accept() => {
                     let (stream, remote_addr) = match res {
                         Ok(v) => v,
-                        Err(e) => {
-                            error!("accept error: {e}");
-                            continue;
-                        }
+                        Err(e) => { error!("accept error: {e}"); continue; }
                     };
-
                     let router = Arc::clone(&router);
-                    // TokioIo adapts tokio's AsyncRead/AsyncWrite to the hyper
-                    // IO traits.
-                    let io = TokioIo::new(stream);
-
                     tasks.spawn(async move {
-                        // `service_fn` turns a plain async function into a
-                        // hyper `Service`. The closure is called once per
-                        // request on the connection, not once per connection.
-                        let svc = service_fn(move |req| {
-                            let router = Arc::clone(&router);
-                            async move { dispatch(router, req, remote_addr).await }
-                        });
-
-                        // `auto::Builder` transparently handles both HTTP/1.1
-                        // and HTTP/2 — whatever the client negotiates.
-                        if let Err(e) = ConnBuilder::new(TokioExecutor::new())
-                            .serve_connection(io, svc)
-                            .await
-                        {
+                        if let Err(e) = serve_connection(stream, router).await {
                             error!(peer = %remote_addr, "connection error: {e}");
                         }
                     });
                 }
 
-                // Reap finished connection tasks so the JoinSet does not grow
-                // without bound on long-running servers.
                 Some(_) = tasks.join_next(), if !tasks.is_empty() => {}
             }
         }
 
-        // Drain: wait for every in-flight connection to finish before we return.
         while tasks.join_next().await.is_some() {}
-
         info!("tsu stopped");
         Ok(())
     }
 }
 
-// ── Request dispatch ──────────────────────────────────────────────────────────
+// ── Connection handler ────────────────────────────────────────────────────────
 
-/// Core hot path: routes one request and produces one response.
+/// Serves all requests on one TCP connection (keep-alive loop).
+async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), Error> {
+    let (read_half, mut write_half) = stream.into_split();
+    let mut reader = BufReader::new(read_half);
+
+    loop {
+        // ── Request line ──────────────────────────────────────────────────────
+        let mut line = String::new();
+        if reader.read_line(&mut line).await? == 0 {
+            break; // peer closed connection
+        }
+        let line = line.trim_end();
+        let mut parts = line.splitn(3, ' ');
+        let method = parts.next().unwrap_or("GET").to_uppercase();
+        let path   = parts.next().unwrap_or("/").to_owned();
+        // HTTP version field ignored — nginx guarantees HTTP/1.1
+
+        // ── Headers ───────────────────────────────────────────────────────────
+        let mut headers: Vec<(String, String)> = Vec::new();
+        loop {
+            let mut hline = String::new();
+            reader.read_line(&mut hline).await?;
+            let hline = hline.trim_end();
+            if hline.is_empty() { break; }
+            if let Some((name, value)) = hline.split_once(": ") {
+                headers.push((name.to_owned(), value.to_owned()));
+            }
+        }
+
+        // ── Body ──────────────────────────────────────────────────────────────
+        let body = read_body(&mut reader, &headers).await?;
+
+        // ── Keep-alive check (before headers are moved into Request) ──────────
+        let keep_alive = !headers.iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("connection"))
+            .map(|(_, v)| v.eq_ignore_ascii_case("close"))
+            .unwrap_or(false);
+
+        // ── Dispatch ──────────────────────────────────────────────────────────
+        let response = match router.lookup(&method, &path) {
+            Some((handler, params)) => {
+                handler.call(Request::new(method, path, headers, body, params)).await
+            }
+            None => Response::status(404),
+        };
+
+        response.write_to(&mut write_half).await?;
+
+        if !keep_alive { break; }
+    }
+
+    Ok(())
+}
+
+// ── Body readers ─────────────────────────────────────────────────────────────
+
+async fn read_body<R: AsyncBufReadExt + Unpin>(
+    reader: &mut R,
+    headers: &[(String, String)],
+) -> Result<Bytes, Error> {
+    if let Some(len) = headers.iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
+        .and_then(|(_, v)| v.trim().parse::<usize>().ok())
+    {
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf).await?;
+        return Ok(Bytes::from(buf));
+    }
+
+    if headers.iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("transfer-encoding"))
+        .map(|(_, v)| v.eq_ignore_ascii_case("chunked"))
+        .unwrap_or(false)
+    {
+        return read_chunked(reader).await;
+    }
+
+    Ok(Bytes::new())
+}
+
+/// Decodes HTTP/1.1 chunked transfer encoding.
 ///
-/// The error type is [`Infallible`](std::convert::Infallible) — we handle all
-/// failures internally (returning 404, 500, etc.) so hyper never sees an error.
-async fn dispatch(
-    router: Arc<Router>,
-    req: hyper::Request<hyper::body::Incoming>,
-    _remote_addr: std::net::SocketAddr,
-) -> Result<http::Response<http_body_util::Full<bytes::Bytes>>, std::convert::Infallible> {
-    let method = req.method().clone();
-    let path = req.uri().path().to_owned();
-
-    let response = match router.lookup(&method, &path) {
-        Some((handler, params)) => handler.call(Request::new(req, params)).await,
-        None => Response::status(http::StatusCode::NOT_FOUND),
-    };
-
-    Ok(response.into_inner())
+/// nginx sends chunked to the backend only when `proxy_buffering off` and the
+/// client streams a chunked body. With the default `proxy_buffering on`, nginx
+/// buffers the full body and forwards with `Content-Length`.
+async fn read_chunked<R: AsyncBufReadExt + Unpin>(reader: &mut R) -> Result<Bytes, Error> {
+    let mut body = BytesMut::new();
+    loop {
+        let mut size_line = String::new();
+        reader.read_line(&mut size_line).await?;
+        let size = usize::from_str_radix(size_line.trim(), 16)
+            .map_err(|_| Error::parse("invalid chunk size"))?;
+        if size == 0 {
+            let mut crlf = [0u8; 2];
+            reader.read_exact(&mut crlf).await?;
+            break;
+        }
+        let mut chunk = vec![0u8; size];
+        reader.read_exact(&mut chunk).await?;
+        body.extend_from_slice(&chunk);
+        let mut crlf = [0u8; 2];
+        reader.read_exact(&mut crlf).await?;
+    }
+    Ok(body.freeze())
 }
 
 // ── Shutdown signal ───────────────────────────────────────────────────────────
 
-/// Resolves on the first shutdown signal the process receives.
-///
-/// On Unix this listens for both **SIGTERM** (sent by `kubectl` and the
-/// Kubernetes control plane) and **SIGINT** (Ctrl-C, for local dev).
-/// On Windows only Ctrl-C is available.
 async fn shutdown_signal() {
     let ctrl_c = async {
         tokio::signal::ctrl_c()
@@ -178,13 +213,11 @@ async fn shutdown_signal() {
             .await;
     };
 
-    // `pending()` is a future that never resolves — on non-Unix platforms
-    // the SIGTERM arm is effectively disabled.
     #[cfg(not(unix))]
     let sigterm = std::future::pending::<()>();
 
     tokio::select! {
-        () = ctrl_c   => {}
-        () = sigterm  => {}
+        () = ctrl_c  => {}
+        () = sigterm => {}
     }
 }

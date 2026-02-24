@@ -22,13 +22,12 @@
 //!
 //! ```rust,no_run
 //! use tsu::{Request, Response};
-//! use http::StatusCode;
 //!
 //! async fn readiness(_req: Request) -> Response {
 //!     if dependencies_are_healthy().await {
 //!         Response::text("ready")
 //!     } else {
-//!         Response::status(StatusCode::SERVICE_UNAVAILABLE)
+//!         Response::status(503)
 //!     }
 //! }
 //!

@@ -9,14 +9,10 @@ keywords = ["http", "web", "framework", "async", "hyper"]
 categories = ["web-programming::http-server", "asynchronous"]
 
 [dependencies]
-bytes        = "1"
-http         = "1"
-http-body-util = "0.1"
-hyper        = { version = "1", features = ["http1", "http2", "server"] }
-hyper-util   = { version = "0.1", features = ["tokio", "server-auto"] }
-matchit      = "0.8"
-tokio        = { version = "1", features = ["net", "rt-multi-thread", "macros", "signal"] }
-tracing      = "0.1"
+bytes   = "1"
+matchit = "0.8"
+tokio   = { version = "1", features = ["net", "rt-multi-thread", "macros", "signal", "io-util"] }
+tracing = "0.1"
 
 [dev-dependencies]
 tokio              = { version = "1", features = ["full"] }
