@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tsu-service
+spec:
+  # ClusterIP is the right type when ingress-nginx sits in front.
+  # Do not use LoadBalancer here — that bypasses the ingress layer.
+  type: ClusterIP
+  selector:
+    app: tsu-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http   # resolves to containerPort named "http" (3000)
+      protocol: TCP
