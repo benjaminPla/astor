@@ -165,7 +165,7 @@ impl ResponseBuilder {
     }
 
     /// Terminate with no body (e.g. 204 No Content, 301 redirect).
-    pub fn done(self) -> Response {
+    pub fn no_body(self) -> Response {
         Response { status: self.status, headers: self.headers, body: Vec::new() }
     }
 

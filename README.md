@@ -2,7 +2,7 @@
 
 > A fast, minimal HTTP framework for Rust applications deployed behind a reverse proxy.
 
-**tsu** (tiramisu 🍰) is built on the same foundation as [axum] — tokio + hyper — but with a narrower, opinionated focus: applications that live behind **nginx** or a **Kubernetes ingress** and don't need the framework to re-implement concerns the reverse proxy already handles.
+**tsu** is built on tokio with a narrow, opinionated focus: applications that live behind **nginx** or a **Kubernetes ingress** and don't need the framework to re-implement concerns the reverse proxy already handles.
 
 ---
 
@@ -45,24 +45,16 @@ use tsu::{Router, Server, Request, Response, health};
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .get("/", hello)
         .get("/users/:id", get_user)
-        .get("/healthz", health::liveness)   // k8s liveness probe
-        .get("/readyz",  health::readiness); // k8s readiness probe
+        .get("/healthz",   health::liveness)
+        .get("/readyz",    health::readiness);
 
-    Server::bind("0.0.0.0:3000")
-        .serve(app)
-        .await
-        .unwrap();
-}
-
-async fn hello(_req: Request) -> Response {
-    Response::text("Hello!")
+    Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 }
 
 async fn get_user(req: Request) -> Response {
     let id = req.param("id").unwrap_or("unknown");
-    Response::json(format!(r#"{{"id":"{id}"}}"#))
+    Response::json(format!(r#"{{"id":"{id}"}}"#).into_bytes())
 }
 ```
 
@@ -70,18 +62,17 @@ async fn get_user(req: Request) -> Response {
 
 ## Routing
 
-Routes use `:param` syntax for path parameters:
-
 ```rust
 router
-    .get("/users/:id",              get_user)
-    .get("/orgs/:org/repos/:repo",  get_repo)
-    .post("/users",                 create_user)
-    .delete("/users/:id",           delete_user)
-    .patch("/users/:id",            update_user);
+    .get("/users/:id",             get_user)
+    .get("/orgs/:org/repos/:repo", get_repo)
+    .post("/users",                create_user)
+    .delete("/users/:id",          delete_user)
+    .patch("/users/:id",           update_user)
+    .route("OPTIONS", "/users",    options_users); // arbitrary method
 ```
 
-Retrieve parameters inside the handler:
+Path parameters via `req.param("name")`:
 
 ```rust
 async fn get_repo(req: Request) -> Response {
@@ -93,26 +84,106 @@ async fn get_repo(req: Request) -> Response {
 
 ---
 
-## Custom response types
+## Responses
 
-Implement `IntoResponse` to return your own types directly:
+### Shortcuts — `200 OK`, no custom headers
+
+```rust
+// JSON — pass bytes from your serialiser directly, zero extra allocation.
+// serde_json:  Response::json(serde_json::to_vec(&val).unwrap())
+// hand-built:  Response::json(format!(r#"{{"id":{id}}}"#).into_bytes())
+Response::json(bytes)
+
+// Plain text
+Response::text("hello")
+
+// No body — 204, 404, etc.
+Response::status(204)
+Response::status(404)
+```
+
+### Builder — custom status or extra headers
+
+The builder always terminates with a typed method. You always know what you're sending.
+
+```rust
+use tsu::{Response, ContentType};
+
+// 201 Created with Location header, JSON body
+Response::builder()
+    .status(201)
+    .header("location", "/users/42")
+    .json(bytes)
+
+// 301 redirect — no body
+Response::builder()
+    .status(301)
+    .header("location", "/new-path")
+    .no_body()
+
+// Any content-type via the ContentType enum
+Response::builder()
+    .status(200)
+    .bytes(ContentType::Xml, b"<users/>".to_vec())
+```
+
+### ContentType enum
+
+| Variant | Content-Type header |
+|---|---|
+| `ContentType::Json` | `application/json` |
+| `ContentType::Text` | `text/plain; charset=utf-8` |
+| `ContentType::Html` | `text/html; charset=utf-8` |
+| `ContentType::Xml` | `application/xml` |
+| `ContentType::OctetStream` | `application/octet-stream` |
+| `ContentType::FormData` | `application/x-www-form-urlencoded` |
+| `ContentType::EventStream` | `text/event-stream` |
+| `ContentType::Csv` | `text/csv` |
+| `ContentType::Pdf` | `application/pdf` |
+| `ContentType::MsgPack` | `application/msgpack` |
+
+### Reading request bodies
+
+`req.body()` returns `&[u8]`. Parse it however you want — tsu never touches the bytes:
+
+```rust
+async fn create_user(req: Request) -> Response {
+    if req.body().is_empty() {
+        return Response::status(400);
+    }
+    let user: User = serde_json::from_slice(req.body()).unwrap();
+    Response::json(serde_json::to_vec(&user).unwrap())
+}
+```
+
+---
+
+## Custom return types with `IntoResponse`
+
+Implement `IntoResponse` on your own types to return them directly from handlers without constructing `Response` manually every time:
 
 ```rust
 use tsu::{IntoResponse, Response};
+use serde::Serialize;
 
-struct Json<T: serde::Serialize>(T);
+struct Json<T: Serialize>(T);
 
-impl<T: serde::Serialize> IntoResponse for Json<T> {
+impl<T: Serialize> IntoResponse for Json<T> {
     fn into_response(self) -> Response {
-        Response::json(serde_json::to_string(&self.0).unwrap())
+        match serde_json::to_vec(&self.0) {
+            Ok(bytes) => Response::json(bytes),
+            Err(_)    => Response::status(500),
+        }
     }
 }
 
-// Now you can use it as a handler return type:
-async fn handler(_req: Request) -> Json<MyStruct> {
-    Json(MyStruct { … })
+// Handler return type is inferred — no Response construction at the call site.
+async fn get_user(_req: Request) -> Json<User> {
+    Json(User { id: 1, name: "alice".into() })
 }
 ```
+
+Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `u16` (status code).
 
 ---
 
@@ -122,20 +193,18 @@ async fn handler(_req: Request) -> Json<MyStruct> {
 use tsu::{Router, health};
 
 let app = Router::new()
-    .get("/healthz", health::liveness)   // always 200
-    .get("/readyz",  health::readiness); // 200 when ready
+    .get("/healthz", health::liveness)   // always 200 — is the process alive?
+    .get("/readyz",  health::readiness); // 200 when ready to serve traffic
 ```
 
-Override readiness to gate on dependency health:
+Custom readiness to gate on dependency health:
 
 ```rust
-use http::StatusCode;
-
 async fn readiness(_req: Request) -> Response {
     if db_pool_is_healthy().await {
         Response::text("ready")
     } else {
-        Response::status(StatusCode::SERVICE_UNAVAILABLE)
+        Response::status(503)
     }
 }
 ```
@@ -148,7 +217,7 @@ async fn readiness(_req: Request) -> Response {
 
 ```sh
 RUST_LOG=info cargo run --example basic
-curl http://localhost:3000/
+curl http://localhost:3000/users/42
 ```
 
 ### With nginx
@@ -163,7 +232,7 @@ client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► 
 
 nginx maintains a pool of idle TCP connections to tsu. Requests are served
 over those connections without a TCP handshake per request. tsu loops on each
-connection until nginx closes it. tsu never manages connection lifetime itself.
+connection until nginx closes it — tsu never manages connection lifetime itself.
 
 **Required proxy settings:**
 
@@ -184,14 +253,14 @@ proxy_buffering on;
 upstream tsu_backend {
     server 127.0.0.1:3000;
 
-    keepalive 64;           # idle connections per worker — raise if you see TCP churn
+    keepalive 64;            # idle connections per worker — raise if you see TCP churn
     keepalive_requests 1000; # recycle connection after N requests (default 1000)
     keepalive_timeout  60s;  # close idle connection after this long (default 60s)
 }
 ```
 
 Rule of thumb for `keepalive`: `(expected RPS / nginx workers) × avg request duration (s)`.
-Too low → pool exhausts under load and new TCP connections are opened.
+Too low → pool exhausts under load, new TCP connections are opened.
 Too high → idle file descriptors accumulate across workers.
 
 ### On Kubernetes
@@ -204,8 +273,8 @@ See the manifests in [`k8s/`](k8s/):
 | `service.yaml` | ClusterIP service on port 3000 |
 | `ingress.yaml` | ingress-nginx with TLS, body-size, and keepalive annotations |
 
-**Required:** set `terminationGracePeriodSeconds` to a value longer than your
-slowest request so tsu has time to drain in-flight work before SIGKILL.
+**Required:** set `terminationGracePeriodSeconds` longer than your slowest request
+so tsu has time to drain in-flight work before SIGKILL.
 
 ```yaml
 spec:
@@ -225,6 +294,5 @@ spec:
 
 MIT
 
-[axum]: https://github.com/tokio-rs/axum
 [matchit]: https://github.com/ibraheemdev/matchit
 [tracing]: https://github.com/tokio-rs/tracing
