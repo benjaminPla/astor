@@ -161,6 +161,12 @@ Key settings:
 proxy_http_version 1.1;
 proxy_set_header   Connection "";   # enables keep-alive to the backend
 client_max_body_size 10m;           # enforced by nginx, not tsu
+
+# REQUIRED — do not set to off.
+# tsu only reads Content-Length-framed bodies. proxy_buffering on (the nginx
+# default) guarantees nginx buffers the full request body and forwards it with
+# Content-Length. Setting it to off allows chunked bodies that tsu cannot parse.
+proxy_buffering on;
 ```
 
 ### On Kubernetes

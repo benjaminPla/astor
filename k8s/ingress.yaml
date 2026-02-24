@@ -16,6 +16,11 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 
+    # ── Body buffering — REQUIRED ─────────────────────────────────────────────
+    # ingress-nginx enables proxy_buffering by default. Never set this to "off".
+    # tsu only reads Content-Length-framed bodies; chunked bodies will break it.
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+
     # ── Keep-alive connections from ingress to pods ───────────────────────────
     # Eliminates per-request TCP handshake overhead to tsu pods.
     nginx.ingress.kubernetes.io/upstream-keepalive-connections: "64"

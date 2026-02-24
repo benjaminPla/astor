@@ -6,6 +6,14 @@
 //! forwarding. The nginx → tsu connection is a trusted HTTP/1.1 stream, so a
 //! simple line-oriented parser over a tokio `BufReader` is enough.
 //!
+//! # Required nginx setting: `proxy_buffering on`
+//!
+//! tsu only reads `Content-Length`-framed bodies. nginx with
+//! `proxy_buffering on` (the default) always buffers the full client body and
+//! forwards it to the backend with a `Content-Length` header. **Never set
+//! `proxy_buffering off`** — doing so allows nginx to forward chunked bodies
+//! that tsu cannot parse.
+//!
 //! # Keep-alive
 //!
 //! HTTP/1.1 defaults to persistent connections. nginx configured with
@@ -158,41 +166,7 @@ async fn read_body<R: AsyncBufReadExt + Unpin>(
         return Ok(buf);
     }
 
-    if headers.iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case("transfer-encoding"))
-        .map(|(_, v)| v.eq_ignore_ascii_case("chunked"))
-        .unwrap_or(false)
-    {
-        return read_chunked(reader).await;
-    }
-
     Ok(Vec::new())
-}
-
-/// Decodes HTTP/1.1 chunked transfer encoding.
-///
-/// nginx sends chunked to the backend only when `proxy_buffering off` and the
-/// client streams a chunked body. With the default `proxy_buffering on`, nginx
-/// buffers the full body and forwards with `Content-Length`.
-async fn read_chunked<R: AsyncBufReadExt + Unpin>(reader: &mut R) -> Result<Vec<u8>, Error> {
-    let mut body = Vec::new();
-    loop {
-        let mut size_line = String::new();
-        reader.read_line(&mut size_line).await?;
-        let size = usize::from_str_radix(size_line.trim(), 16)
-            .map_err(|_| Error::parse("invalid chunk size"))?;
-        if size == 0 {
-            let mut crlf = [0u8; 2];
-            reader.read_exact(&mut crlf).await?;
-            break;
-        }
-        let mut chunk = vec![0u8; size];
-        reader.read_exact(&mut chunk).await?;
-        body.extend_from_slice(&chunk);
-        let mut crlf = [0u8; 2];
-        reader.read_exact(&mut crlf).await?;
-    }
-    Ok(body)
 }
 
 // ── Shutdown signal ───────────────────────────────────────────────────────────

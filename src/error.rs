@@ -6,43 +6,24 @@ use std::fmt;
 ///
 /// Application-level errors (404, 422, etc.) are expressed as HTTP
 /// [`Response`](crate::Response) values, not as `Error`s. This type surfaces
-/// infrastructure failures: binding to a port, accepting a connection, or
-/// malformed HTTP from an unexpected client.
+/// infrastructure failures: binding to a port or accepting a connection.
 #[derive(Debug)]
-pub struct Error(Box<ErrorKind>);
-
-#[derive(Debug)]
-enum ErrorKind {
-    Io(std::io::Error),
-    Parse(String),
-}
+pub struct Error(std::io::Error);
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0.as_ref() {
-            ErrorKind::Io(e) => write!(f, "io: {e}"),
-            ErrorKind::Parse(s) => write!(f, "parse: {s}"),
-        }
+        write!(f, "io: {}", self.0)
     }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self.0.as_ref() {
-            ErrorKind::Io(e) => Some(e),
-            ErrorKind::Parse(_) => None,
-        }
+        Some(&self.0)
     }
 }
 
 impl From<std::io::Error> for Error {
     fn from(e: std::io::Error) -> Self {
-        Self(Box::new(ErrorKind::Io(e)))
-    }
-}
-
-impl Error {
-    pub(crate) fn parse(msg: impl Into<String>) -> Self {
-        Self(Box::new(ErrorKind::Parse(msg.into())))
+        Self(e)
     }
 }
