@@ -1,36 +1,28 @@
-//! Minimal tsu example — two routes and the built-in health checks.
+//! Minimal tsu example — CRUD-style JSON endpoints and health checks.
 //!
 //! Run with:
+//!   RUST_LOG=info cargo run --example basic
 //!
-//! ```sh
-//! cargo run --example basic
-//! ```
-//!
-//! Then try:
-//!
-//! ```sh
-//! curl http://localhost:3000/
-//! curl http://localhost:3000/users/42
-//! curl http://localhost:3000/healthz
-//! curl http://localhost:3000/readyz
-//! curl http://localhost:3000/missing   # → 404
-//! ```
+//! Try:
+//!   curl http://localhost:3000/users/42
+//!   curl -X POST http://localhost:3000/users \
+//!        -H 'content-type: application/json' \
+//!        -d '{"name":"alice"}'
+//!   curl -X DELETE http://localhost:3000/users/42
+//!   curl http://localhost:3000/healthz
 
 use tsu::{Request, Response, Router, Server, health};
 
 #[tokio::main]
 async fn main() {
-    // `fmt::init()` reads the RUST_LOG env var and prints spans/events to
-    // stderr. Try: RUST_LOG=info cargo run --example basic
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
-        // Application routes
-        .get("/", hello)
-        .get("/users/:id", get_user)
-        // Kubernetes probes — always register these
-        .get("/healthz", health::liveness)
-        .get("/readyz", health::readiness);
+        .get("/users/:id",    get_user)
+        .post("/users",       create_user)
+        .delete("/users/:id", delete_user)
+        .get("/healthz",      health::liveness)
+        .get("/readyz",       health::readiness);
 
     Server::bind("0.0.0.0:3000")
         .serve(app)
@@ -38,12 +30,33 @@ async fn main() {
         .expect("server error");
 }
 
-async fn hello(_req: Request) -> Response {
-    Response::text("Hello from tsu!")
-}
-
+// GET /users/:id
+//
+// Response::json takes Vec<u8> — pass bytes from your serialiser:
+//   serde_json:  Response::json(serde_json::to_vec(&user).unwrap())
+//   hand-built:  Response::json(format!(...).into_bytes())  ← zero-cost, no copy
 async fn get_user(req: Request) -> Response {
     let id = req.param("id").unwrap_or("unknown");
-    // Hand-written JSON — serde integration will be added in a later iteration.
-    Response::json(format!(r#"{{"id": "{id}"}}"#))
+    Response::json(format!(r#"{{"id":"{id}","name":"alice"}}"#).into_bytes())
+}
+
+// POST /users
+//
+// req.body() is &[u8] — parse with serde_json::from_slice, simd-json, etc.
+// tsu does not touch the bytes.
+async fn create_user(req: Request) -> Response {
+    if req.body().is_empty() {
+        return Response::status(400);
+    }
+
+    // Real app: let input: CreateUser = serde_json::from_slice(req.body()).unwrap();
+    Response::builder()
+        .status(201)
+        .header("location", "/users/99")
+        .json(r#"{"id":"99","name":"new_user"}"#.to_owned().into_bytes())
+}
+
+// DELETE /users/:id → 204 No Content
+async fn delete_user(_req: Request) -> Response {
+    Response::status(204)
 }
