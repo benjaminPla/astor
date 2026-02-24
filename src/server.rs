@@ -23,7 +23,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{error, info};
@@ -149,14 +148,14 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
 async fn read_body<R: AsyncBufReadExt + Unpin>(
     reader: &mut R,
     headers: &[(String, String)],
-) -> Result<Bytes, Error> {
+) -> Result<Vec<u8>, Error> {
     if let Some(len) = headers.iter()
         .find(|(k, _)| k.eq_ignore_ascii_case("content-length"))
         .and_then(|(_, v)| v.trim().parse::<usize>().ok())
     {
         let mut buf = vec![0u8; len];
         reader.read_exact(&mut buf).await?;
-        return Ok(Bytes::from(buf));
+        return Ok(buf);
     }
 
     if headers.iter()
@@ -167,7 +166,7 @@ async fn read_body<R: AsyncBufReadExt + Unpin>(
         return read_chunked(reader).await;
     }
 
-    Ok(Bytes::new())
+    Ok(Vec::new())
 }
 
 /// Decodes HTTP/1.1 chunked transfer encoding.
@@ -175,8 +174,8 @@ async fn read_body<R: AsyncBufReadExt + Unpin>(
 /// nginx sends chunked to the backend only when `proxy_buffering off` and the
 /// client streams a chunked body. With the default `proxy_buffering on`, nginx
 /// buffers the full body and forwards with `Content-Length`.
-async fn read_chunked<R: AsyncBufReadExt + Unpin>(reader: &mut R) -> Result<Bytes, Error> {
-    let mut body = BytesMut::new();
+async fn read_chunked<R: AsyncBufReadExt + Unpin>(reader: &mut R) -> Result<Vec<u8>, Error> {
+    let mut body = Vec::new();
     loop {
         let mut size_line = String::new();
         reader.read_line(&mut size_line).await?;
@@ -193,7 +192,7 @@ async fn read_chunked<R: AsyncBufReadExt + Unpin>(reader: &mut R) -> Result<Byte
         let mut crlf = [0u8; 2];
         reader.read_exact(&mut crlf).await?;
     }
-    Ok(body.freeze())
+    Ok(body)
 }
 
 // ── Shutdown signal ───────────────────────────────────────────────────────────

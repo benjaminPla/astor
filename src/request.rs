@@ -2,14 +2,12 @@
 
 use std::collections::HashMap;
 
-use bytes::Bytes;
-
 /// An incoming HTTP request, parsed from the raw TCP stream.
 pub struct Request {
     pub(crate) method: String,
     pub(crate) path: String,
     pub(crate) headers: Vec<(String, String)>,
-    pub(crate) body: Bytes,
+    pub(crate) body: Vec<u8>,
     pub(crate) params: HashMap<String, String>,
 }
 
@@ -18,7 +16,7 @@ impl Request {
         method: String,
         path: String,
         headers: Vec<(String, String)>,
-        body: Bytes,
+        body: Vec<u8>,
         params: HashMap<String, String>,
     ) -> Self {
         Self { method, path, headers, body, params }
@@ -27,7 +25,7 @@ impl Request {
     pub fn method(&self) -> &str { &self.method }
     pub fn path(&self) -> &str { &self.path }
     pub fn headers(&self) -> &[(String, String)] { &self.headers }
-    pub fn body(&self) -> &Bytes { &self.body }
+    pub fn body(&self) -> &[u8] { &self.body }
 
     /// Case-insensitive header lookup.
     pub fn header(&self, name: &str) -> Option<&str> {

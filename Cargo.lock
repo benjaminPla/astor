@@ -295,7 +295,6 @@ dependencies = [
 name = "tsu"
 version = "0.1.0"
 dependencies = [
- "bytes",
  "matchit",
  "tokio",
  "tracing",

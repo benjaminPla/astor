@@ -1,6 +1,5 @@
 //! Outgoing HTTP response type and the [`IntoResponse`] conversion trait.
 
-use bytes::Bytes;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 // ── Response ─────────────────────────────────────────────────────────────────
@@ -20,7 +19,7 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 pub struct Response {
     pub(crate) status: u16,
     pub(crate) headers: Vec<(String, String)>,
-    pub(crate) body: Bytes,
+    pub(crate) body: Vec<u8>,
 }
 
 impl Response {
@@ -85,7 +84,7 @@ impl ResponseBuilder {
     }
 
     pub fn body(self, body: String) -> Response {
-        Response { status: self.status, headers: self.headers, body: Bytes::from(body) }
+        Response { status: self.status, headers: self.headers, body: body.into_bytes() }
     }
 }
 
