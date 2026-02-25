@@ -9,6 +9,10 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+---
+
+## [0.1.1] — 2026-02-25
+
 ### Fixed
 
 - Path parameters (`/users/:id`) now match correctly. matchit 0.8 switched from `:param` to `{param}` syntax; astor now translates at registration time so user-facing API is unchanged.
@@ -36,5 +40,6 @@ First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing,
 - Production nginx configuration (`nginx/nginx.conf`) and Kubernetes manifests (`k8s/`).
 - Raw tokio HTTP/1.1 parsing — no hyper, no http crate.
 
-[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/benjaminPla/astor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/benjaminPla/astor/releases/tag/v0.1.0
