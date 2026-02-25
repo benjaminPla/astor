@@ -5,11 +5,13 @@
 
 use std::collections::HashMap;
 
+use crate::method::Method;
+
 /// An incoming HTTP request, parsed from the raw TCP stream.
 pub struct Request {
     pub(crate) body: Vec<u8>,
     pub(crate) headers: Vec<(String, String)>,
-    pub(crate) method: String,
+    pub(crate) method: Method,
     pub(crate) params: HashMap<String, String>,
     pub(crate) path: String,
 }
@@ -18,14 +20,14 @@ impl Request {
     pub(crate) fn new(
         body: Vec<u8>,
         headers: Vec<(String, String)>,
-        method: String,
+        method: Method,
         params: HashMap<String, String>,
         path: String,
     ) -> Self {
         Self { body, headers, method, params, path }
     }
 
-    pub fn method(&self) -> &str { &self.method }
+    pub fn method(&self) -> Method { self.method }
     pub fn path(&self) -> &str { &self.path }
     pub fn headers(&self) -> &[(String, String)] { &self.headers }
     pub fn body(&self) -> &[u8] { &self.body }

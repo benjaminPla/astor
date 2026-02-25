@@ -32,6 +32,7 @@ use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::error::Error;
+use crate::method::Method;
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::Router;
@@ -105,8 +106,15 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         }
         let line = line.trim_end();
         let mut parts = line.splitn(3, ' ');
-        let method = parts.next().unwrap_or("GET").to_uppercase();
-        let path   = parts.next().unwrap_or("/").to_owned();
+        let method_str = parts.next().unwrap_or("").to_uppercase();
+        let path = parts.next().unwrap_or("/").to_owned();
+        let method = match method_str.parse::<Method>() {
+            Ok(m) => m,
+            Err(_) => {
+                Response::status(Status::MethodNotAllowed).write_to(&mut write_half).await?;
+                continue;
+            }
+        };
         // HTTP version field ignored — nginx guarantees HTTP/1.1
 
         // ── Headers ───────────────────────────────────────────────────────────
@@ -125,7 +133,7 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         let body = read_body(&mut reader, &headers).await?;
 
         // ── Dispatch ──────────────────────────────────────────────────────────
-        let response = match router.lookup(&method, &path) {
+        let response = match router.lookup(method, &path) {
             Some((handler, params)) => {
                 handler.call(Request::new(body, headers, method, params, path)).await
             }

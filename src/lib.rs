@@ -51,6 +51,7 @@
 
 mod error;
 mod handler;
+mod method;
 mod request;
 mod response;
 mod router;
@@ -62,6 +63,7 @@ pub mod middleware;
 
 pub use error::Error;
 pub use handler::Handler;
+pub use method::Method;
 pub use request::Request;
 pub use response::{ContentType, IntoResponse, Response};
 pub use router::Router;

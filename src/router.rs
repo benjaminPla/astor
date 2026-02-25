@@ -9,13 +9,14 @@ use std::sync::Arc;
 use matchit::Router as MatchitRouter;
 
 use crate::handler::{BoxedHandler, Handler};
+use crate::method::Method;
 
 /// The application router.
 ///
 /// One [`matchit`] radix tree per HTTP method — O(path-length) lookup.
 /// Builder pattern: each registration takes ownership and returns a new `Router`.
 pub struct Router {
-    routes: HashMap<String, MatchitRouter<BoxedHandler>>,
+    routes: HashMap<Method, MatchitRouter<BoxedHandler>>,
 }
 
 impl Router {
@@ -24,36 +25,36 @@ impl Router {
     }
 
     pub fn delete(self, path: &str, handler: impl Handler) -> Self {
-        self.add("DELETE", path, handler)
+        self.add(Method::Delete, path, handler)
     }
 
     pub fn get(self, path: &str, handler: impl Handler) -> Self {
-        self.add("GET", path, handler)
+        self.add(Method::Get, path, handler)
     }
 
     pub fn patch(self, path: &str, handler: impl Handler) -> Self {
-        self.add("PATCH", path, handler)
+        self.add(Method::Patch, path, handler)
     }
 
     pub fn post(self, path: &str, handler: impl Handler) -> Self {
-        self.add("POST", path, handler)
+        self.add(Method::Post, path, handler)
     }
 
     pub fn put(self, path: &str, handler: impl Handler) -> Self {
-        self.add("PUT", path, handler)
+        self.add(Method::Put, path, handler)
     }
 
-    /// Registers a route for an arbitrary HTTP method string (e.g. `"OPTIONS"`).
-    pub fn route(self, method: &str, path: &str, handler: impl Handler) -> Self {
+    /// Registers a route for any known [`Method`].
+    pub fn route(self, method: Method, path: &str, handler: impl Handler) -> Self {
         self.add(method, path, handler)
     }
 
-    fn add(mut self, method: &str, path: &str, handler: impl Handler) -> Self {
+    fn add(mut self, method: Method, path: &str, handler: impl Handler) -> Self {
         // matchit 0.8 uses `{param}` syntax; translate the conventional `:param` form.
         let path = colon_to_braces(path);
         self.routes
-            .entry(method.to_uppercase())
-            .or_insert_with(MatchitRouter::new)
+            .entry(method)
+            .or_default()
             .insert(path.clone(), handler.into_boxed_handler())
             .unwrap_or_else(|e| panic!("invalid route `{path}`: {e}"));
         self
@@ -61,10 +62,10 @@ impl Router {
 
     pub(crate) fn lookup(
         &self,
-        method: &str,
+        method: Method,
         path: &str,
     ) -> Option<(BoxedHandler, HashMap<String, String>)> {
-        let tree = self.routes.get(method)?;
+        let tree = self.routes.get(&method)?;
         let matched = tree.at(path).ok()?;
         let handler = Arc::clone(matched.value);
         let params = matched.params.iter()
