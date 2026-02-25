@@ -81,13 +81,15 @@ async fn get_user(req: Request) -> Response {
 ## Routing
 
 ```rust
+use astor::Method;
+
 router
-    .delete("/users/:id",          delete_user)
-    .get("/users/:id",             get_user)
-    .get("/orgs/:org/repos/:repo", get_repo)
-    .patch("/users/:id",           update_user)
-    .post("/users",                create_user)
-    .route("OPTIONS", "/users",    options_users); // arbitrary method
+    .delete("/users/:id",                    delete_user)
+    .get("/users/:id",                       get_user)
+    .get("/orgs/:org/repos/:repo",           get_repo)
+    .patch("/users/:id",                     update_user)
+    .post("/users",                          create_user)
+    .route(Method::Options, "/users",        options_users);
 ```
 
 Path parameters via `req.param("name")`:
