@@ -25,13 +25,13 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use astor::{Router, Server, Request, Response};
+//! use astor::{Method, Router, Server, Request, Response};
 //!
 //! #[tokio::main]
 //! async fn main() {
 //!     let app = Router::new()
-//!         .get("/", hello)
-//!         .get("/users/:id", get_user);
+//!         .on(Method::Get, "/",          hello)
+//!         .on(Method::Get, "/users/:id", get_user);
 //!
 //!     Server::bind("0.0.0.0:3000")
 //!         .serve(app)

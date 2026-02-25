@@ -13,10 +13,14 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `Method` enum — all RFC 9110 standard methods (`Connect`, `Delete`, `Get`, `Head`, `Options`, `Patch`, `Post`, `Put`, `Trace`), WebDAV extensions (`Copy`, `Lock`, `Mkcalendar`, `Mkcol`, `Move`, `Propfind`, `Proppatch`, `Report`, `Search`, `Unlock`), and `Purge` (nginx / Varnish cache invalidation).
 
+### Added
+
+- `Method` enum — all RFC 9110 standard methods (`Connect`, `Delete`, `Get`, `Head`, `Options`, `Patch`, `Post`, `Put`, `Trace`), WebDAV extensions (`Copy`, `Lock`, `Mkcalendar`, `Mkcol`, `Move`, `Propfind`, `Proppatch`, `Report`, `Search`, `Unlock`), and `Purge` (nginx / Varnish cache invalidation).
+
 ### Changed
 
+- `Router::get`, `post`, `put`, `patch`, `delete`, `route` replaced by a single `Router::on(Method, path, handler)` — uniform API, no shorthand exceptions.
 - `Request::method()` now returns `Method` instead of `&str`.
-- `Router::route()` now takes `Method` instead of `&str` — passing an arbitrary string is a compile error.
 
 ---
 

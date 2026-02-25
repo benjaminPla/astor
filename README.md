@@ -58,14 +58,14 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use astor::{Router, Server, Request, Response, health};
+use astor::{health, Method, Request, Response, Router, Server};
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .get("/healthz",   health::liveness)
-        .get("/readyz",    health::readiness)
-        .get("/users/:id", get_user);
+        .on(Method::Get, "/healthz",   health::liveness)
+        .on(Method::Get, "/readyz",    health::readiness)
+        .on(Method::Get, "/users/:id", get_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 }
@@ -84,12 +84,12 @@ async fn get_user(req: Request) -> Response {
 use astor::Method;
 
 router
-    .delete("/users/:id",                    delete_user)
-    .get("/users/:id",                       get_user)
-    .get("/orgs/:org/repos/:repo",           get_repo)
-    .patch("/users/:id",                     update_user)
-    .post("/users",                          create_user)
-    .route(Method::Options, "/users",        options_users);
+    .on(Method::Delete,  "/users/:id",          delete_user)
+    .on(Method::Get,     "/users/:id",          get_user)
+    .on(Method::Get,     "/orgs/:org/repos/:repo", get_repo)
+    .on(Method::Options, "/users",              options_users)
+    .on(Method::Patch,   "/users/:id",          update_user)
+    .on(Method::Post,    "/users",              create_user);
 ```
 
 Path parameters via `req.param("name")`:

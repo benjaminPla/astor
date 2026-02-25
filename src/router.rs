@@ -24,28 +24,8 @@ impl Router {
         Self { routes: HashMap::new() }
     }
 
-    pub fn delete(self, path: &str, handler: impl Handler) -> Self {
-        self.add(Method::Delete, path, handler)
-    }
-
-    pub fn get(self, path: &str, handler: impl Handler) -> Self {
-        self.add(Method::Get, path, handler)
-    }
-
-    pub fn patch(self, path: &str, handler: impl Handler) -> Self {
-        self.add(Method::Patch, path, handler)
-    }
-
-    pub fn post(self, path: &str, handler: impl Handler) -> Self {
-        self.add(Method::Post, path, handler)
-    }
-
-    pub fn put(self, path: &str, handler: impl Handler) -> Self {
-        self.add(Method::Put, path, handler)
-    }
-
-    /// Registers a route for any known [`Method`].
-    pub fn route(self, method: Method, path: &str, handler: impl Handler) -> Self {
+    /// Registers a handler for the given [`Method`] and path.
+    pub fn on(self, method: Method, path: &str, handler: impl Handler) -> Self {
         self.add(method, path, handler)
     }
 

@@ -15,19 +15,19 @@
 //!   curl -X POST   http://localhost:3000/users \
 //!        -H 'content-type: application/json' -d '{"name":"alice"}'
 
-use astor::{ContentType, health, Request, Response, Router, Server, Status};
+use astor::{ContentType, health, Method, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .delete("/users/:id", delete_user)
-        .get("/healthz",      health::liveness)
-        .get("/readyz",       health::readiness)
-        .get("/redirect",     redirect)
-        .get("/users/:id",    get_user)
-        .get("/xml",          xml_response)
-        .patch("/users/:id",  update_user)
-        .post("/users",       create_user);
+        .on(Method::Delete, "/users/:id", delete_user)
+        .on(Method::Get,    "/healthz",   health::liveness)
+        .on(Method::Get,    "/readyz",    health::readiness)
+        .on(Method::Get,    "/redirect",  redirect)
+        .on(Method::Get,    "/users/:id", get_user)
+        .on(Method::Get,    "/xml",       xml_response)
+        .on(Method::Patch,  "/users/:id", update_user)
+        .on(Method::Post,   "/users",     create_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.expect("server error");
 }
@@ -50,7 +50,7 @@ async fn get_user(req: Request) -> Response {
 // Status enum — self-documenting; great for handlers where intent matters.
 async fn create_user(req: Request) -> Response {
     if req.body().is_empty() {
-        return Response::status(Status::BadRequest);  // enum
+        return Response::status(Status::BadRequest);
     }
     Response::builder()
         .status(Status::Created)

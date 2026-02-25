@@ -10,11 +10,11 @@
 //! Register them on your router:
 //!
 //! ```rust,no_run
-//! use astor::{Router, health};
+//! use astor::{Method, Router, health};
 //!
 //! let app = Router::new()
-//!     .get("/healthz", health::liveness)
-//!     .get("/readyz", health::readiness);
+//!     .on(Method::Get, "/healthz", health::liveness)
+//!     .on(Method::Get, "/readyz",  health::readiness);
 //! ```
 //!
 //! Override `readiness` with a custom handler if you need to gate on
