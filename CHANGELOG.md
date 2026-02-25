@@ -9,6 +9,10 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+
+- `tracing` dependency — astor is a library; consumers bring their own logging. Errors surface via `Result`.
+
 ---
 
 ## [0.1.0] — 2026-02-25

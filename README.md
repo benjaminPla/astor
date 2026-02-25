@@ -39,7 +39,12 @@ What's left for astor — which is, coincidentally, the only part that changes b
 | Graceful shutdown | SIGTERM + Ctrl-C — drains in-flight requests before exit |
 | Health probes | `/healthz` and `/readyz` built in |
 | Radix-tree routing | [`matchit`] — O(path-length) lookup |
-| Structured logging | [`tracing`] crate |
+
+## Dependencies
+
+astor keeps its dependency tree minimal by design. It speaks raw HTTP/1.1 over tokio — no hyper, no tower, no middleware stack you didn't ask for.
+
+Every crate that lives in `[dependencies]` is there because the alternative is re-implementing it badly. Everything else is your problem, not ours. You want logging? Bring your own. You want tracing? Wire it up in your app. astor surfaces errors as `Result` — catch them, log them however you like.
 
 ---
 
@@ -257,7 +262,7 @@ async fn readiness(_req: Request) -> Response {
 ### Local development
 
 ```sh
-RUST_LOG=info cargo run --example basic
+cargo run --example basic
 curl http://localhost:3000/users/42
 ```
 
@@ -349,4 +354,3 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before openin
 MIT
 
 [matchit]: https://github.com/ibraheemdev/matchit
-[tracing]: https://github.com/tokio-rs/tracing

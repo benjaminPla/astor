@@ -1,6 +1,6 @@
 [package]
 name = "astor"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A fast, minimal HTTP framework for reverse-proxy deployments"
 license = "MIT"
@@ -14,11 +14,9 @@ categories = ["web-programming::http-server", "asynchronous"]
 [dependencies]
 matchit = "0.8"
 tokio   = { version = "1", features = ["net", "rt-multi-thread", "macros", "signal", "io-util"] }
-tracing = "0.1"
 
 [dev-dependencies]
-tokio              = { version = "1", features = ["full"] }
-tracing-subscriber = "0.3"
+tokio = { version = "1", features = ["full"] }
 
 [[example]]
 name = "basic"

@@ -1,7 +1,7 @@
 //! astor example — covers every Response variant and common handler patterns.
 //!
 //! Run:
-//!   RUST_LOG=info cargo run --example basic
+//!   cargo run --example basic
 //!
 //! Try:
 //!   curl http://localhost:3000/healthz
@@ -19,8 +19,6 @@ use astor::{ContentType, health, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
-
     let app = Router::new()
         .delete("/users/:id", delete_user)
         .get("/healthz",      health::liveness)

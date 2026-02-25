@@ -30,7 +30,6 @@ use std::sync::Arc;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info};
 
 use crate::error::Error;
 use crate::request::Request;
@@ -55,8 +54,6 @@ impl Server {
         let listener = TcpListener::bind(self.addr).await?;
         let router = Arc::new(router);
 
-        info!(addr = %self.addr, "astor listening");
-
         let mut tasks = tokio::task::JoinSet::new();
         let shutdown = shutdown_signal();
         tokio::pin!(shutdown);
@@ -66,20 +63,17 @@ impl Server {
                 biased;
 
                 () = &mut shutdown => {
-                    info!(in_flight = tasks.len(), "shutdown signal received, draining connections");
                     break;
                 }
 
                 res = listener.accept() => {
-                    let (stream, remote_addr) = match res {
+                    let (stream, _remote_addr) = match res {
                         Ok(v) => v,
-                        Err(e) => { error!("accept error: {e}"); continue; }
+                        Err(_) => continue,
                     };
                     let router = Arc::clone(&router);
                     tasks.spawn(async move {
-                        if let Err(e) = serve_connection(stream, router).await {
-                            error!(peer = %remote_addr, "connection error: {e}");
-                        }
+                        let _ = serve_connection(stream, router).await;
                     });
                 }
 
@@ -88,7 +82,6 @@ impl Server {
         }
 
         while tasks.join_next().await.is_some() {}
-        info!("astor stopped");
         Ok(())
     }
 }

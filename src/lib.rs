@@ -21,7 +21,6 @@
 //! - Async I/O — tokio, raw HTTP/1.1, no hyper
 //! - Graceful shutdown — SIGTERM / Ctrl-C, waits for in-flight requests
 //! - Health probes — `/healthz` and `/readyz` for Kubernetes
-//! - Structured tracing — [`tracing`] crate
 //!
 //! ## Quick start
 //!
