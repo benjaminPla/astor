@@ -36,7 +36,7 @@ use crate::method::Method;
 use crate::request::Request;
 use crate::response::Response;
 use crate::router::Router;
-use crate::status::Status;
+use crate::status::Status; // used in dispatch fallback (404)
 
 pub struct Server {
     addr: SocketAddr,
@@ -108,13 +108,7 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         let mut parts = line.splitn(3, ' ');
         let method_str = parts.next().unwrap_or("").to_uppercase();
         let path = parts.next().unwrap_or("/").to_owned();
-        let method = match method_str.parse::<Method>() {
-            Ok(m) => m,
-            Err(_) => {
-                Response::status(Status::MethodNotAllowed).write_to(&mut write_half).await?;
-                continue;
-            }
-        };
+        let Ok(method) = method_str.parse::<Method>() else { break };
         // HTTP version field ignored — nginx guarantees HTTP/1.1
 
         // ── Headers ───────────────────────────────────────────────────────────

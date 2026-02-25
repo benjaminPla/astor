@@ -270,73 +270,65 @@ curl http://localhost:3000/users/42
 
 ### With nginx
 
-See [`nginx/nginx.conf`](nginx/nginx.conf) for a production-ready configuration.
-
-**How keep-alive works — and why astor doesn't manage it:**
-
 ```
 client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► astor
 ```
 
-nginx maintains a pool of idle TCP connections to astor. Requests reuse those connections — no handshake per request. astor loops on each connection until nginx closes it. Connection lifetime is nginx's business. astor doesn't inspect the `Connection` header, and it never will.
+nginx handles TLS, rate limiting, slow clients, and body-size limits. astor does not — by design. The configuration below is what makes that contract work.
 
-**nginx does not block unknown HTTP methods by default.** Without `limit_except`, a request with method `BANANA` reaches your upstream. Add an allowlist — astor's `Method` enum is the reference for what belongs in it:
+#### Keep-alive pool
 
-```nginx
-location / {
-    limit_except GET POST PUT PATCH DELETE OPTIONS HEAD CONNECT TRACE {
-        return 405;
-    }
-    # ... proxy_pass etc.
-}
-```
-
-Add WebDAV methods (`COPY`, `LOCK`, `MKCOL`, etc.) or `PURGE` only if your astor routes actually use them.
-
-**Required proxy settings:**
-
-```nginx
-proxy_http_version 1.1;
-proxy_set_header   Connection "";   # clears nginx's default "close", enabling keep-alive
-client_max_body_size 10m;           # enforced by nginx, not astor
-
-# REQUIRED — do not set to off.
-# astor only reads Content-Length-framed bodies. proxy_buffering on (the default)
-# guarantees nginx buffers the full request body before forwarding it.
-proxy_buffering on;
-```
-
-**Tuning the upstream connection pool** (in the `upstream` block):
+nginx reuses TCP connections to astor instead of opening a new one per request. astor loops on each connection until nginx closes it — it never inspects the `Connection` header.
 
 ```nginx
 upstream astor_backend {
     server 127.0.0.1:3000;
 
-    keepalive 64;            # idle connections per worker — raise if you see TCP churn
-    keepalive_requests 1000; # recycle connection after N requests (default 1000)
-    keepalive_timeout  60s;  # close idle connection after this long (default 60s)
+    keepalive 64;            # idle connections per worker
+    keepalive_requests 1000; # recycle after N requests
+    keepalive_timeout  60s;  # close idle connections after this long
 }
 ```
 
-Rule of thumb for `keepalive`: `(expected RPS / nginx workers) × avg request duration (s)`.
-Too low → pool exhausts under load, new TCP connections are opened.
-Too high → idle file descriptors accumulate across workers.
+Rule of thumb for `keepalive`: `(expected RPS / nginx workers) × avg request duration (s)`. Too low → TCP churn under load. Too high → idle file descriptors accumulate.
+
+#### Required location block
+
+```nginx
+location / {
+    # nginx forwards ALL methods by default — including unknown garbage.
+    # List every method your app uses. Everything else gets 405.
+    limit_except GET POST PUT PATCH DELETE OPTIONS HEAD CONNECT TRACE {
+        return 405;
+    }
+
+    proxy_pass         http://astor_backend;
+
+    # Required for keep-alive: HTTP/1.1 + clear the default "close" header.
+    proxy_http_version 1.1;
+    proxy_set_header   Connection  "";
+
+    # astor reads Content-Length-framed bodies only.
+    # Do not set proxy_buffering off — chunked bodies will not be read.
+    proxy_buffering    on;
+
+    # Body size, slow-client protection, and rate limiting belong here —
+    # nginx enforces them before the request reaches astor.
+    client_max_body_size  10m;
+    client_body_timeout   30s;
+    client_header_timeout 10s;
+}
+```
 
 ### On Kubernetes
 
-See the manifests in [`k8s/`](k8s/):
+ingress-nginx is an nginx instance — the same rules above apply. Set the equivalent annotations on your `Ingress` resource.
 
-| File | Purpose |
-|---|---|
-| `deployment.yaml` | Pod spec with probes and `terminationGracePeriodSeconds` |
-| `ingress.yaml` | ingress-nginx with TLS, body-size, and keepalive annotations |
-| `service.yaml` | ClusterIP service on port 3000 |
-
-**Required:** set `terminationGracePeriodSeconds` longer than your slowest request. Otherwise k8s SIGKILLs the pod before astor finishes draining. That is not graceful shutdown.
+The one astor-specific k8s requirement is `terminationGracePeriodSeconds`. On `SIGTERM`, astor stops accepting new connections and drains in-flight requests before exiting. If this value is shorter than your slowest request, k8s sends `SIGKILL` while requests are still running — that is not graceful shutdown.
 
 ```yaml
 spec:
-  terminationGracePeriodSeconds: 30  # adjust to your workload
+  terminationGracePeriodSeconds: 30  # must be longer than your slowest request
   containers:
     - name: app
       image: your-registry/your-app:latest

@@ -17,7 +17,6 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `Request::method()` now returns `Method` instead of `&str`.
 - `Router::route()` now takes `Method` instead of `&str` — passing an arbitrary string is a compile error.
-- Unknown method strings are rejected with `405 Method Not Allowed` at the connection level, before any handler runs. Note: nginx does not block unknown methods by default — configure `limit_except` in your nginx location block to enforce this at the proxy layer too (see `nginx/nginx.conf`).
 
 ---
 
@@ -47,7 +46,7 @@ First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing,
 - `Router` — radix-tree routing via `matchit`. `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, and arbitrary methods.
 - `Server::bind` — graceful shutdown on `SIGTERM` / `Ctrl-C`. Waits for in-flight requests to drain.
 - `Status` enum — every IANA-registered HTTP status code as a named variant.
-- Production nginx configuration (`nginx/nginx.conf`) and Kubernetes manifests (`k8s/`).
+- nginx and Kubernetes deployment configuration documented in `README.md`.
 - Raw tokio HTTP/1.1 parsing — no hyper, no http crate.
 
 [Unreleased]: https://github.com/benjaminPla/astor/compare/v0.1.1...HEAD
