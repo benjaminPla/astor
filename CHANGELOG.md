@@ -9,9 +9,9 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Added
+---
 
-- `Method` enum — all RFC 9110 standard methods (`Connect`, `Delete`, `Get`, `Head`, `Options`, `Patch`, `Post`, `Put`, `Trace`), WebDAV extensions (`Copy`, `Lock`, `Mkcalendar`, `Mkcol`, `Move`, `Propfind`, `Proppatch`, `Report`, `Search`, `Unlock`), and `Purge` (nginx / Varnish cache invalidation).
+## [0.2.0] — 2026-02-25
 
 ### Added
 
@@ -29,7 +29,7 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Path parameters (`/users/:id`) now match correctly. matchit 0.8 switched from `:param` to `{param}` syntax; astor now translates at registration time so user-facing API is unchanged.
+- Path parameters now match correctly. matchit 0.8 switched from `:param` to `{param}` syntax; astor translated at registration time so the user-facing API was unchanged.
 
 ### Removed
 
@@ -54,6 +54,7 @@ First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing,
 - nginx and Kubernetes deployment configuration documented in `README.md`.
 - Raw tokio HTTP/1.1 parsing — no hyper, no http crate.
 
-[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/benjaminPla/astor/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/benjaminPla/astor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/benjaminPla/astor/releases/tag/v0.1.0
