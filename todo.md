@@ -1,6 +1,16 @@
+# todo
+
+## backlog
+
 - [x] remove hyper
 - [x] remove http
-- [] remove logs/tracing => that's user (developers) work
-- [] see how to split crate in features and put "health" into one
-- [] make sure /examples is not in the final code
-- [] pipeline => `crate publish`
+- [x] remove logs/tracing — that's the consumer's responsibility
+- [ ] split crate into features, put `health` behind one
+- [ ] ensure `examples/` is excluded from the published crate
+- [ ] set up `cargo publish` pipeline
+
+## ai suggestions
+
+- [ ] add tests for `colon_to_braces` and router param extraction
+- [ ] handle query strings in the path parser (strip before matchit lookup)
+- [ ] `CHANGELOG.md` diff links at the bottom are stale after 0.1.1 — update when publishing
