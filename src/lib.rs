@@ -7,7 +7,8 @@
 //!
 //! nginx handles TLS, rate limiting, slow clients, and body-size limits.
 //! astor does not — by design. The proxy does proxy things. The framework
-//! does framework things.
+//! does framework things. Every feature astor skips is one nginx already
+//! ships, tested at scale, at no cost to you.
 //!
 //! What nginx / ingress already owns — astor intentionally ignores:
 //!
@@ -16,7 +17,7 @@
 //! - **Slow-client protection** — nginx timeout and buffer settings
 //! - **TLS termination** — nginx SSL / k8s ingress
 //!
-//! What's left for astor:
+//! What's left for astor — the only part that changes between applications:
 //!
 //! - Radix-tree routing — O(path-length) lookup via [`matchit`]
 //! - Async I/O — tokio, raw HTTP/1.1, no hyper
@@ -25,27 +26,35 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use astor::{Method, Request, Response, Router, Server};
+//! use astor::{Method, Request, Response, Router, Server, Status};
 //!
 //! #[tokio::main]
 //! async fn main() {
 //!     let app = Router::new()
-//!         .on(Method::Get, "/",           hello)
-//!         .on(Method::Get, "/users/{id}", get_user);
+//!         .on(Method::Get,  "/users/{id}", get_user)
+//!         .on(Method::Post, "/users",      create_user);
 //!
-//!     Server::bind("0.0.0.0:3000")
-//!         .serve(app)
-//!         .await
-//!         .unwrap();
-//! }
-//!
-//! async fn hello(_req: Request) -> Response {
-//!     Response::text("Hello from astor!")
+//!     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 //! }
 //!
 //! async fn get_user(req: Request) -> Response {
 //!     let id = req.param("id").unwrap_or("unknown");
-//!     Response::text(format!("User: {id}"))
+//!     // astor sends bytes — it doesn't care how you build them:
+//!     //   serde_json::to_vec(&user).unwrap()
+//!     //   format!(r#"{{"id":"{id}"}}"#).into_bytes()
+//!     # let bytes: Vec<u8> = vec![];
+//!     Response::json(bytes)
+//! }
+//!
+//! async fn create_user(req: Request) -> Response {
+//!     if req.body().is_empty() {
+//!         return Response::status(Status::BadRequest);
+//!     }
+//!     # let bytes: Vec<u8> = vec![];
+//!     Response::builder()
+//!         .status(Status::Created)
+//!         .header("location", "/users/99")
+//!         .json(bytes)
 //! }
 //! ```
 

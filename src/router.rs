@@ -13,8 +13,9 @@ use crate::method::Method;
 
 /// The application router.
 ///
-/// One [`matchit`] radix tree per HTTP method — O(path-length) lookup.
-/// Builder pattern: each registration takes ownership and returns a new `Router`.
+/// One radix tree per HTTP method — O(path-length) lookup, no allocations on
+/// the hot path. Build it once at startup; pass it to [`Server::serve`].
+/// Each [`Router::on`] call returns `self` so registrations chain naturally.
 pub struct Router {
     routes: HashMap<Method, MatchitRouter<BoxedHandler>>,
 }
@@ -24,7 +25,20 @@ impl Router {
         Self { routes: HashMap::new() }
     }
 
-    /// Registers a handler for the given [`Method`] and path.
+    /// Register a handler for a method + path pair. Returns `self` for chaining.
+    ///
+    /// Path parameters use `{name}` syntax — `req.param("name")` retrieves them:
+    ///
+    /// ```rust,no_run
+    /// # use astor::{Method, Request, Response, Router};
+    /// # async fn get_user(_: Request) -> Response { Response::text("") }
+    /// # async fn create_user(_: Request) -> Response { Response::text("") }
+    /// # async fn delete_user(_: Request) -> Response { Response::text("") }
+    /// Router::new()
+    ///     .on(Method::Delete, "/users/{id}", delete_user)
+    ///     .on(Method::Get,    "/users/{id}", get_user)
+    ///     .on(Method::Post,   "/users",      create_user);
+    /// ```
     pub fn on(self, method: Method, path: &str, handler: impl Handler) -> Self {
         self.add(method, path, handler)
     }

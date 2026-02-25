@@ -44,29 +44,39 @@ impl ContentType {
 
 /// An outgoing HTTP response.
 ///
-/// # Shortcuts (200 OK, no custom headers needed)
+/// Two paths: shortcuts for the common case, a builder when you need control.
+///
+/// # Shortcuts — `200 OK`, no custom headers
 ///
 /// ```rust
-/// use astor::{Response, Status};
-///
-/// Response::json(br#"{"id":1}"#.to_vec());
-/// Response::text("hello");
+/// # use astor::{Response, Status};
+/// # let bytes: Vec<u8> = vec![];
+/// // astor sends bytes — doesn't care how you build them:
+/// //   serde_json::to_vec(&val).unwrap()
+/// //   format!(r#"{{"id":1}}"#).into_bytes()
+/// Response::json(bytes);
+/// Response::text("pong");
 /// Response::status(Status::NoContent);
 /// ```
 ///
-/// # Builder (custom status or headers)
+/// # Builder — custom status or extra headers
+///
+/// Ends with a typed body call. You always know exactly what you're sending.
 ///
 /// ```rust
-/// use astor::{Response, ContentType, Status};
-///
+/// # use astor::{ContentType, Response, Status};
+/// # let bytes: Vec<u8> = vec![];
+/// // bytes — serde_json::to_vec(&val).unwrap(), format!(r#"..."#).into_bytes(), etc.
+/// // 201 Created + Location
 /// Response::builder()
 ///     .status(Status::Created)
 ///     .header("location", "/users/42")
-///     .json(br#"{"id":42}"#.to_vec());
+///     .json(bytes);
 ///
+/// // non-JSON body via ContentType enum
 /// Response::builder()
 ///     .status(Status::Ok)
-///     .bytes(ContentType::Xml, b"<ok/>".to_vec());
+///     .bytes(ContentType::Xml, b"<users/>".to_vec());
 /// ```
 pub struct Response {
     pub(crate) body: Vec<u8>,
@@ -77,9 +87,10 @@ pub struct Response {
 impl Response {
     /// `200 OK` — `application/json`.
     ///
-    /// Pass bytes from your serialiser directly — no intermediate allocation:
-    /// - serde_json: `serde_json::to_vec(&val).unwrap()`
-    /// - hand-built: `format!(r#"{{"id":{id}}}"#).into_bytes()`  ← zero-cost
+    /// astor sends bytes — it doesn't know or care what's in them. Bring your own serialiser:
+    /// - `serde_json::to_vec(&val).unwrap()`
+    /// - `format!(r#"{{"id":{id}}}"#).into_bytes()`
+    /// - simd-json, rkyv, hand-built — anything that gives `Vec<u8>`
     pub fn json(body: Vec<u8>) -> Self {
         Self::bytes_raw("application/json", body)
     }

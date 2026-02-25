@@ -6,16 +6,18 @@
 //! ```rust
 //! use astor::{Response, Status};
 //!
+//! // status-only, no body
 //! Response::status(Status::NoContent);
-//! Response::status(204);               // u16 still works
 //!
+//! // bytes — astor doesn't care: serde_json::to_vec(&val).unwrap(), format!(r#"..."#).into_bytes(), etc.
+//! # let bytes: Vec<u8> = vec![];
 //! Response::builder()
 //!     .status(Status::Created)
 //!     .header("location", "/users/42")
 //!     .json(bytes);
 //!
-//! // Return a status directly from a handler
-//! async fn delete(_req: astor::Request) -> Status {
+//! // return Status directly from a handler — astor wraps it
+//! async fn delete_user(_req: astor::Request) -> Status {
 //!     Status::NoContent
 //! }
 //! ```

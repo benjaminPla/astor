@@ -43,7 +43,7 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [0.1.0] — 2026-02-25
 
-First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing, graceful shutdown, health probes — and nothing the reverse proxy already handles.
+First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing, graceful shutdown — and nothing the reverse proxy already handles.
 
 ### Added
 
