@@ -9,6 +9,16 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `Method` enum — all RFC 9110 standard methods (`Connect`, `Delete`, `Get`, `Head`, `Options`, `Patch`, `Post`, `Put`, `Trace`), WebDAV extensions (`Copy`, `Lock`, `Mkcalendar`, `Mkcol`, `Move`, `Propfind`, `Proppatch`, `Report`, `Search`, `Unlock`), and `Purge` (nginx / Varnish cache invalidation).
+
+### Changed
+
+- `Request::method()` now returns `Method` instead of `&str`.
+- `Router::route()` now takes `Method` instead of `&str` — passing an arbitrary string is a compile error.
+- Unknown method strings are rejected with `405 Method Not Allowed` at the connection level, before any handler runs. Note: nginx does not block unknown methods by default — configure `limit_except` in your nginx location block to enforce this at the proxy layer too (see `nginx/nginx.conf`).
+
 ---
 
 ## [0.1.1] — 2026-02-25

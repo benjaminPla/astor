@@ -280,6 +280,19 @@ client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► 
 
 nginx maintains a pool of idle TCP connections to astor. Requests reuse those connections — no handshake per request. astor loops on each connection until nginx closes it. Connection lifetime is nginx's business. astor doesn't inspect the `Connection` header, and it never will.
 
+**nginx does not block unknown HTTP methods by default.** Without `limit_except`, a request with method `BANANA` reaches your upstream. Add an allowlist — astor's `Method` enum is the reference for what belongs in it:
+
+```nginx
+location / {
+    limit_except GET POST PUT PATCH DELETE OPTIONS HEAD CONNECT TRACE {
+        return 405;
+    }
+    # ... proxy_pass etc.
+}
+```
+
+Add WebDAV methods (`COPY`, `LOCK`, `MKCOL`, etc.) or `PURGE` only if your astor routes actually use them.
+
 **Required proxy settings:**
 
 ```nginx
