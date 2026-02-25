@@ -31,7 +31,7 @@
 //! async fn main() {
 //!     let app = Router::new()
 //!         .on(Method::Get, "/",          hello)
-//!         .on(Method::Get, "/users/:id", get_user);
+//!         .on(Method::Get, "/users/{id}", get_user);
 //!
 //!     Server::bind("0.0.0.0:3000")
 //!         .serve(app)

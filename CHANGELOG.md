@@ -21,6 +21,7 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `Router::get`, `post`, `put`, `patch`, `delete`, `route` replaced by a single `Router::on(Method, path, handler)` — uniform API, no shorthand exceptions.
 - `Request::method()` now returns `Method` instead of `&str`.
+- Path parameters now use matchit's native `{param}` syntax instead of `:param`. Update routes accordingly: `/users/:id` → `/users/{id}`.
 
 ---
 

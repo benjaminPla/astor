@@ -65,7 +65,7 @@ async fn main() {
     let app = Router::new()
         .on(Method::Get, "/healthz",   health::liveness)
         .on(Method::Get, "/readyz",    health::readiness)
-        .on(Method::Get, "/users/:id", get_user);
+        .on(Method::Get, "/users/{id}", get_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 }
@@ -84,11 +84,11 @@ async fn get_user(req: Request) -> Response {
 use astor::Method;
 
 router
-    .on(Method::Delete,  "/users/:id",          delete_user)
-    .on(Method::Get,     "/users/:id",          get_user)
-    .on(Method::Get,     "/orgs/:org/repos/:repo", get_repo)
+    .on(Method::Delete,  "/users/{id}",          delete_user)
+    .on(Method::Get,     "/users/{id}",          get_user)
+    .on(Method::Get,     "/orgs/{org}/repos/{repo}", get_repo)
     .on(Method::Options, "/users",              options_users)
-    .on(Method::Patch,   "/users/:id",          update_user)
+    .on(Method::Patch,   "/users/{id}",          update_user)
     .on(Method::Post,    "/users",              create_user);
 ```
 

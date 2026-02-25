@@ -20,19 +20,19 @@ use astor::{ContentType, health, Method, Request, Response, Router, Server, Stat
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .on(Method::Delete, "/users/:id", delete_user)
+        .on(Method::Delete, "/users/{id}", delete_user)
         .on(Method::Get,    "/healthz",   health::liveness)
         .on(Method::Get,    "/readyz",    health::readiness)
         .on(Method::Get,    "/redirect",  redirect)
-        .on(Method::Get,    "/users/:id", get_user)
+        .on(Method::Get,    "/users/{id}", get_user)
         .on(Method::Get,    "/xml",       xml_response)
-        .on(Method::Patch,  "/users/:id", update_user)
+        .on(Method::Patch,  "/users/{id}", update_user)
         .on(Method::Post,   "/users",     create_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.expect("server error");
 }
 
-// ── GET /users/:id ────────────────────────────────────────────────────────────
+// ── GET /users/{id} ────────────────────────────────────────────────────────────
 //
 // Response::json takes Vec<u8> — pass bytes from your serialiser directly.
 //   serde_json:  Response::json(serde_json::to_vec(&user).unwrap())
@@ -58,7 +58,7 @@ async fn create_user(req: Request) -> Response {
         .json(r#"{"id":"99","name":"new_user"}"#.to_owned().into_bytes())
 }
 
-// ── PATCH /users/:id ─────────────────────────────────────────────────────────
+// ── PATCH /users/{id} ─────────────────────────────────────────────────────────
 //
 // 200 with updated resource.
 async fn update_user(req: Request) -> Response {
@@ -66,7 +66,7 @@ async fn update_user(req: Request) -> Response {
     Response::json(format!(r#"{{"id":"{id}","name":"updated"}}"#).into_bytes())
 }
 
-// ── DELETE /users/:id ─────────────────────────────────────────────────────────
+// ── DELETE /users/{id} ─────────────────────────────────────────────────────────
 //
 // Handler returns Status directly — no Response construction needed.
 async fn delete_user(_req: Request) -> Status {

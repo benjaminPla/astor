@@ -41,7 +41,7 @@ impl Request {
 
     /// Returns a named path parameter.
     ///
-    /// For a route `/users/:id`, `req.param("id")` on `/users/42` returns `Some("42")`.
+    /// For a route `/users/{id}`, `req.param("id")` on `/users/42` returns `Some("42")`.
     pub fn param(&self, key: &str) -> Option<&str> {
         self.params.get(key).map(String::as_str)
     }
