@@ -15,24 +15,32 @@
 //!   curl -X POST   http://localhost:3000/users \
 //!        -H 'content-type: application/json' -d '{"name":"alice"}'
 
-use astor::{ContentType, health, Method, Request, Response, Router, Server, Status};
+use astor::{ContentType, Method, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
         .on(Method::Delete, "/users/{id}", delete_user)
-        .on(Method::Get,    "/healthz",   health::liveness)
-        .on(Method::Get,    "/readyz",    health::readiness)
-        .on(Method::Get,    "/redirect",  redirect)
+        .on(Method::Get,    "/healthz",    liveness)
+        .on(Method::Get,    "/readyz",     readiness)
+        .on(Method::Get,    "/redirect",   redirect)
         .on(Method::Get,    "/users/{id}", get_user)
-        .on(Method::Get,    "/xml",       xml_response)
+        .on(Method::Get,    "/xml",        xml_response)
         .on(Method::Patch,  "/users/{id}", update_user)
-        .on(Method::Post,   "/users",     create_user);
+        .on(Method::Post,   "/users",      create_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.expect("server error");
 }
 
-// ── GET /users/{id} ────────────────────────────────────────────────────────────
+// ── Health ────────────────────────────────────────────────────────────────────
+//
+// Health endpoints are regular handlers. No magic, no built-in module.
+// Gate readiness on dependency health (db pools, downstream services, etc.)
+// if your app needs a warm-up period before serving traffic.
+async fn liveness(_req: Request) -> Response { Response::text("ok") }
+async fn readiness(_req: Request) -> Response { Response::text("ready") }
+
+// ── GET /users/{id} ───────────────────────────────────────────────────────────
 //
 // Response::json takes Vec<u8> — pass bytes from your serialiser directly.
 //   serde_json:  Response::json(serde_json::to_vec(&user).unwrap())
@@ -46,8 +54,6 @@ async fn get_user(req: Request) -> Response {
 //
 // req.body() is &[u8]. Parse with serde_json::from_slice, simd-json, etc.
 // 201 Created + Location header.
-//
-// Status enum — self-documenting; great for handlers where intent matters.
 async fn create_user(req: Request) -> Response {
     if req.body().is_empty() {
         return Response::status(Status::BadRequest);
@@ -58,17 +64,15 @@ async fn create_user(req: Request) -> Response {
         .json(r#"{"id":"99","name":"new_user"}"#.to_owned().into_bytes())
 }
 
-// ── PATCH /users/{id} ─────────────────────────────────────────────────────────
-//
-// 200 with updated resource.
+// ── PATCH /users/{id} ────────────────────────────────────────────────────────
 async fn update_user(req: Request) -> Response {
     let id = req.param("id").unwrap_or("unknown");
     Response::json(format!(r#"{{"id":"{id}","name":"updated"}}"#).into_bytes())
 }
 
-// ── DELETE /users/{id} ─────────────────────────────────────────────────────────
+// ── DELETE /users/{id} ───────────────────────────────────────────────────────
 //
-// Handler returns Status directly — no Response construction needed.
+// Return Status directly from a handler — astor wraps it into a response.
 async fn delete_user(_req: Request) -> Status {
     Status::NoContent
 }

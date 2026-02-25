@@ -5,8 +5,9 @@
 //!
 //! ## The contract
 //!
-//! nginx handles TLS. nginx handles rate limiting. nginx handles slow clients
-//! and body sizes. So astor doesn't.
+//! nginx handles TLS, rate limiting, slow clients, and body-size limits.
+//! astor does not — by design. The proxy does proxy things. The framework
+//! does framework things.
 //!
 //! What nginx / ingress already owns — astor intentionally ignores:
 //!
@@ -19,18 +20,17 @@
 //!
 //! - Radix-tree routing — O(path-length) lookup via [`matchit`]
 //! - Async I/O — tokio, raw HTTP/1.1, no hyper
-//! - Graceful shutdown — SIGTERM / Ctrl-C, waits for in-flight requests
-//! - Health probes — `/healthz` and `/readyz` for Kubernetes
+//! - Graceful shutdown — SIGTERM / Ctrl-C, drains in-flight requests
 //!
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use astor::{Method, Router, Server, Request, Response};
+//! use astor::{Method, Request, Response, Router, Server};
 //!
 //! #[tokio::main]
 //! async fn main() {
 //!     let app = Router::new()
-//!         .on(Method::Get, "/",          hello)
+//!         .on(Method::Get, "/",           hello)
 //!         .on(Method::Get, "/users/{id}", get_user);
 //!
 //!     Server::bind("0.0.0.0:3000")
@@ -58,7 +58,6 @@ mod router;
 mod server;
 mod status;
 
-pub mod health;
 pub mod middleware;
 
 pub use error::Error;

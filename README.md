@@ -37,7 +37,6 @@ What's left for astor — which is, coincidentally, the only part that changes b
 |---|---|
 | Async I/O | tokio |
 | Graceful shutdown | SIGTERM + Ctrl-C — drains in-flight requests before exit |
-| Health probes | `/healthz` and `/readyz` built in |
 | Radix-tree routing | [`matchit`] — O(path-length) lookup |
 
 ## Dependencies
@@ -53,18 +52,16 @@ Every crate that lives in `[dependencies]` is there because the alternative is r
 ```toml
 # Cargo.toml
 [dependencies]
-astor   = "0.1"
+astor = "0.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use astor::{health, Method, Request, Response, Router, Server};
+use astor::{Method, Request, Response, Router, Server};
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .on(Method::Get, "/healthz",   health::liveness)
-        .on(Method::Get, "/readyz",    health::readiness)
         .on(Method::Get, "/users/{id}", get_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
@@ -235,17 +232,17 @@ async fn delete_user(_req: Request) -> Status { Status::NoContent }
 
 ## Health checks
 
-Kubernetes needs to know if your pod is alive and ready. Two endpoints. Always 200 if the process can respond. That's it.
+Health endpoints are regular handlers — register them like any other route:
 
 ```rust
-use astor::{Router, health};
+.on(Method::Get, "/healthz", liveness)
+.on(Method::Get, "/readyz",  readiness)
 
-let app = Router::new()
-    .get("/healthz", health::liveness)   // is the process alive?
-    .get("/readyz",  health::readiness); // ready to serve traffic?
+async fn liveness(_req: Request) -> Response { Response::text("ok") }
+async fn readiness(_req: Request) -> Response { Response::text("ready") }
 ```
 
-Custom readiness to gate on dependency health:
+Gate readiness on dependency health if needed:
 
 ```rust
 async fn readiness(_req: Request) -> Response {
@@ -333,9 +330,9 @@ spec:
     - name: app
       image: your-registry/your-app:latest
       livenessProbe:
-        httpGet: { path: /healthz, port: 3000 }
+        httpGet: { path: /healthz, port: 3000 }  # register this route in your app
       readinessProbe:
-        httpGet: { path: /readyz, port: 3000 }
+        httpGet: { path: /readyz, port: 3000 }   # register this route in your app
 ```
 
 ---

@@ -23,6 +23,10 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `Request::method()` now returns `Method` instead of `&str`.
 - Path parameters now use matchit's native `{param}` syntax instead of `:param`. Update routes accordingly: `/users/:id` → `/users/{id}`.
 
+### Removed
+
+- `health` module (`health::liveness`, `health::readiness`) — health endpoints are regular handlers; no built-in module needed. See README for the two-liner pattern.
+
 ---
 
 ## [0.1.1] — 2026-02-25
