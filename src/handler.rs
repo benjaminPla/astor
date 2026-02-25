@@ -2,10 +2,10 @@
 //!
 //! # How async handlers are stored
 //!
-//! The router needs to hold handlers of *different* types in a single
-//! `HashMap<Method, Tree>`. Rust collections can only hold one concrete type,
-//! so we use **trait objects** (`dyn ErasedHandler`) to hide the concrete
-//! handler type behind a common interface and store everything uniformly.
+//! The router holds handlers of *different* concrete types in one
+//! `HashMap<Method, Tree>`. Rust collections hold one type. So we use
+//! **trait objects** (`dyn ErasedHandler`) to erase the concrete type and
+//! store everything uniformly. This is standard Rust — not magic.
 //!
 //! The chain from user code to vtable call is:
 //!

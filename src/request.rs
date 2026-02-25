@@ -1,25 +1,28 @@
 //! Incoming HTTP request type.
+//!
+//! Parsed from the raw TCP stream by the server. By the time your handler
+//! sees it, it is a clean struct. No ceremony.
 
 use std::collections::HashMap;
 
 /// An incoming HTTP request, parsed from the raw TCP stream.
 pub struct Request {
-    pub(crate) method: String,
-    pub(crate) path: String,
-    pub(crate) headers: Vec<(String, String)>,
     pub(crate) body: Vec<u8>,
+    pub(crate) headers: Vec<(String, String)>,
+    pub(crate) method: String,
     pub(crate) params: HashMap<String, String>,
+    pub(crate) path: String,
 }
 
 impl Request {
     pub(crate) fn new(
-        method: String,
-        path: String,
-        headers: Vec<(String, String)>,
         body: Vec<u8>,
+        headers: Vec<(String, String)>,
+        method: String,
         params: HashMap<String, String>,
+        path: String,
     ) -> Self {
-        Self { method, path, headers, body, params }
+        Self { body, headers, method, params, path }
     }
 
     pub fn method(&self) -> &str { &self.method }

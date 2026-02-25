@@ -5,7 +5,10 @@ edition = "2024"
 description = "A fast, minimal HTTP framework for reverse-proxy deployments"
 license = "MIT"
 readme = "README.md"
-keywords = ["http", "web", "framework", "async", "hyper"]
+repository = "https://github.com/benjaminPla/tsu"
+homepage = "https://github.com/benjaminPla/tsu"
+documentation = "https://docs.rs/tsu"
+keywords = ["async", "framework", "http", "tokio", "web"]
 categories = ["web-programming::http-server", "asynchronous"]
 
 [dependencies]

@@ -1,12 +1,17 @@
 //! Unified error type.
+//!
+//! Application-level problems (wrong input, missing resource) belong in the
+//! response — use `Status::BadRequest`, `Status::NotFound`, etc. This type
+//! surfaces infrastructure failures only: binding to a port, accepting a
+//! connection. Things that mean the process should probably stop.
 
 use std::fmt;
 
 /// The error type returned by tsu's fallible operations.
 ///
-/// Application-level errors (404, 422, etc.) are expressed as HTTP
-/// [`Response`](crate::Response) values, not as `Error`s. This type surfaces
-/// infrastructure failures: binding to a port or accepting a connection.
+/// Not for 404s. Not for validation failures. Those are responses, not errors.
+/// This is for infrastructure failures — port binding, connection acceptance.
+/// The kind of failure where the right answer is probably to stop the process.
 #[derive(Debug)]
 pub struct Error(std::io::Error);
 

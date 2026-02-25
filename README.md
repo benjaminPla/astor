@@ -1,31 +1,44 @@
 # tsu
 
-> A fast, minimal HTTP framework for Rust applications deployed behind a reverse proxy.
+[![Crates.io](https://img.shields.io/crates/v/tsu)](https://crates.io/crates/tsu)
+[![docs.rs](https://img.shields.io/docsrs/tsu)](https://docs.rs/tsu)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/benjaminPla/tsu/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminPla/tsu/actions)
 
-**tsu** is built on tokio with a narrow, opinionated focus: applications that live behind **nginx** or a **Kubernetes ingress** and don't need the framework to re-implement concerns the reverse proxy already handles.
+> Minimal HTTP framework for Rust. Lives behind nginx. Does its job. Goes home.
+
+Your nginx handles TLS.
+Your nginx handles rate limiting.
+Your nginx handles slow clients, body sizes, and half the other things frameworks love to re-implement.
+
+**So what exactly is your framework supposed to duplicate?**
+
+Nothing. tsu doesn't touch any of that. The proxy does proxy things. The framework does framework things. This is not a controversial opinion.
 
 ---
 
-## The reverse-proxy contract
+## The deal
 
-When nginx (or ingress-nginx) sits in front of your service, it already covers:
+tsu sits behind nginx or ingress-nginx. The proxy covers the hard, boring, already-solved stuff. tsu covers your routes.
 
-| Concern | Where |
+What the proxy already owns — and why we sleep soundly knowing it:
+
+| nginx / ingress handles this | what tsu thinks about it |
 |---|---|
-| TLS termination | nginx SSL / k8s ingress TLS |
-| Body-size limits | `client_max_body_size` in nginx |
-| Rate limiting | `limit_req` / ingress-nginx annotations |
-| Slow-client & DDoS protection | nginx timeouts and buffers |
-| HTTP/2 & HTTP/3 to clients | nginx upstream negotiation |
+| Body-size limits | `client_max_body_size` in nginx. Done. |
+| HTTP/2 + HTTP/3 to clients | nginx negotiates protocol. tsu speaks plain HTTP/1.1. |
+| Rate limiting | `limit_req` or ingress-nginx annotations. Not our concern. |
+| Slow-client & DDoS protection | nginx timeouts and buffers. We trust nginx. |
+| TLS termination | nginx SSL / k8s ingress TLS. Obviously. |
 
-**tsu** owns the rest:
+What's left for tsu — which is, coincidentally, the only part that changes between applications:
 
-| Concern | How |
+| What | How |
 |---|---|
-| Radix-tree routing | [`matchit`] — O(path-length) lookup |
 | Async I/O | tokio |
-| Graceful shutdown | SIGTERM + Ctrl-C; waits for in-flight requests |
-| Health probes | Built-in `/healthz` and `/readyz` |
+| Graceful shutdown | SIGTERM + Ctrl-C — drains in-flight requests before exit |
+| Health probes | `/healthz` and `/readyz` built in |
+| Radix-tree routing | [`matchit`] — O(path-length) lookup |
 | Structured logging | [`tracing`] crate |
 
 ---
@@ -45,9 +58,9 @@ use tsu::{Router, Server, Request, Response, health};
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .get("/users/:id", get_user)
         .get("/healthz",   health::liveness)
-        .get("/readyz",    health::readiness);
+        .get("/readyz",    health::readiness)
+        .get("/users/:id", get_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 }
@@ -64,11 +77,11 @@ async fn get_user(req: Request) -> Response {
 
 ```rust
 router
+    .delete("/users/:id",          delete_user)
     .get("/users/:id",             get_user)
     .get("/orgs/:org/repos/:repo", get_repo)
-    .post("/users",                create_user)
-    .delete("/users/:id",          delete_user)
     .patch("/users/:id",           update_user)
+    .post("/users",                create_user)
     .route("OPTIONS", "/users",    options_users); // arbitrary method
 ```
 
@@ -88,7 +101,7 @@ async fn get_repo(req: Request) -> Response {
 
 ### Status codes
 
-All status codes go through `Status`. Every IANA-registered code is a variant:
+All status codes go through `Status`. Every IANA-registered code is a named variant — no magic integers:
 
 ```rust
 use tsu::Status;
@@ -105,12 +118,12 @@ Status::InternalServerError    // 500
 Status::ServiceUnavailable     // 503
 ```
 
-### Shortcuts — `200 OK`, no custom headers
+### Shortcuts — `200 OK`, no custom headers needed
 
 ```rust
 use tsu::{Response, Status};
 
-// JSON — pass bytes from your serialiser directly, zero extra allocation.
+// JSON — bytes from your serialiser, directly. No intermediate allocation.
 // serde_json:  Response::json(serde_json::to_vec(&val).unwrap())
 // hand-built:  Response::json(format!(r#"{{"id":{id}}}"#).into_bytes())
 Response::json(bytes)
@@ -125,7 +138,7 @@ Response::status(Status::NotFound)
 
 ### Builder — custom status or extra headers
 
-The builder always terminates with a typed body method. You always know what you're sending.
+Ends with a typed body call. You always know exactly what you're sending.
 
 ```rust
 use tsu::{Response, ContentType, Status};
@@ -152,16 +165,16 @@ Response::builder()
 
 | Variant | Content-Type header |
 |---|---|
-| `ContentType::Json` | `application/json` |
-| `ContentType::Text` | `text/plain; charset=utf-8` |
-| `ContentType::Html` | `text/html; charset=utf-8` |
-| `ContentType::Xml` | `application/xml` |
-| `ContentType::OctetStream` | `application/octet-stream` |
-| `ContentType::FormData` | `application/x-www-form-urlencoded` |
-| `ContentType::EventStream` | `text/event-stream` |
 | `ContentType::Csv` | `text/csv` |
-| `ContentType::Pdf` | `application/pdf` |
+| `ContentType::EventStream` | `text/event-stream` |
+| `ContentType::FormData` | `application/x-www-form-urlencoded` |
+| `ContentType::Html` | `text/html; charset=utf-8` |
+| `ContentType::Json` | `application/json` |
 | `ContentType::MsgPack` | `application/msgpack` |
+| `ContentType::OctetStream` | `application/octet-stream` |
+| `ContentType::Pdf` | `application/pdf` |
+| `ContentType::Text` | `text/plain; charset=utf-8` |
+| `ContentType::Xml` | `application/xml` |
 
 ### Reading request bodies
 
@@ -181,7 +194,7 @@ async fn create_user(req: Request) -> Response {
 
 ## Custom return types with `IntoResponse`
 
-Implement `IntoResponse` on your own types to return them directly from handlers without constructing `Response` manually every time:
+Implement `IntoResponse` on your own types and return them directly from handlers. No `Response` construction scattered across every call site:
 
 ```rust
 use tsu::{IntoResponse, Response, Status};
@@ -207,7 +220,7 @@ async fn get_user(_req: Request) -> Json<User> {
 Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `Status`.
 
 ```rust
-// Return Status directly from a handler — no Response construction needed
+// Return Status directly — tsu wraps it. No boilerplate.
 async fn delete_user(_req: Request) -> Status { Status::NoContent }
 ```
 
@@ -215,12 +228,14 @@ async fn delete_user(_req: Request) -> Status { Status::NoContent }
 
 ## Health checks
 
+Kubernetes needs to know if your pod is alive and ready. Two endpoints. Always 200 if the process can respond. That's it.
+
 ```rust
 use tsu::{Router, health};
 
 let app = Router::new()
-    .get("/healthz", health::liveness)   // always 200 — is the process alive?
-    .get("/readyz",  health::readiness); // 200 when ready to serve traffic
+    .get("/healthz", health::liveness)   // is the process alive?
+    .get("/readyz",  health::readiness); // ready to serve traffic?
 ```
 
 Custom readiness to gate on dependency health:
@@ -250,15 +265,13 @@ curl http://localhost:3000/users/42
 
 See [`nginx/nginx.conf`](nginx/nginx.conf) for a production-ready configuration.
 
-**How keep-alive works:**
+**How keep-alive works — and why tsu doesn't manage it:**
 
 ```
 client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► tsu
 ```
 
-nginx maintains a pool of idle TCP connections to tsu. Requests are served
-over those connections without a TCP handshake per request. tsu loops on each
-connection until nginx closes it — tsu never manages connection lifetime itself.
+nginx maintains a pool of idle TCP connections to tsu. Requests reuse those connections — no handshake per request. tsu loops on each connection until nginx closes it. Connection lifetime is nginx's business. tsu doesn't inspect the `Connection` header, and it never will.
 
 **Required proxy settings:**
 
@@ -296,11 +309,10 @@ See the manifests in [`k8s/`](k8s/):
 | File | Purpose |
 |---|---|
 | `deployment.yaml` | Pod spec with probes and `terminationGracePeriodSeconds` |
-| `service.yaml` | ClusterIP service on port 3000 |
 | `ingress.yaml` | ingress-nginx with TLS, body-size, and keepalive annotations |
+| `service.yaml` | ClusterIP service on port 3000 |
 
-**Required:** set `terminationGracePeriodSeconds` longer than your slowest request
-so tsu has time to drain in-flight work before SIGKILL.
+**Required:** set `terminationGracePeriodSeconds` longer than your slowest request. Otherwise k8s SIGKILLs the pod before tsu finishes draining. That is not graceful shutdown.
 
 ```yaml
 spec:
@@ -313,6 +325,22 @@ spec:
       readinessProbe:
         httpGet: { path: /readyz, port: 3000 }
 ```
+
+---
+
+## A note on ordering
+
+Everything in this codebase that can be alphabetically ordered, is. Enum variants. Function parameters. Struct fields. Imports. Table rows. Everything.
+
+This is not a stylistic preference. It is a rule. When things are ordered, you stop thinking about where they are and start thinking about what they do. You search for `Html` in the `ContentType` enum and your eye goes straight to the `H`s. You add a new variant and you know exactly where it lives. No debates, no "should this go before or after that" — alphabetical order is always the right answer and it is never wrong.
+
+If you open a PR and something that could be alphabetically ordered is not, it will be sent back.
+
+---
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR. See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ---
 

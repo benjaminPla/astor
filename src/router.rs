@@ -1,4 +1,7 @@
 //! Radix-tree request router.
+//!
+//! One tree per HTTP method. O(path-length) lookup. No magic, no middleware
+//! stack, no reflection. You register a path, you get a handler. That is all.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,8 +23,16 @@ impl Router {
         Self { routes: HashMap::new() }
     }
 
+    pub fn delete(self, path: &str, handler: impl Handler) -> Self {
+        self.add("DELETE", path, handler)
+    }
+
     pub fn get(self, path: &str, handler: impl Handler) -> Self {
         self.add("GET", path, handler)
+    }
+
+    pub fn patch(self, path: &str, handler: impl Handler) -> Self {
+        self.add("PATCH", path, handler)
     }
 
     pub fn post(self, path: &str, handler: impl Handler) -> Self {
@@ -30,14 +41,6 @@ impl Router {
 
     pub fn put(self, path: &str, handler: impl Handler) -> Self {
         self.add("PUT", path, handler)
-    }
-
-    pub fn delete(self, path: &str, handler: impl Handler) -> Self {
-        self.add("DELETE", path, handler)
-    }
-
-    pub fn patch(self, path: &str, handler: impl Handler) -> Self {
-        self.add("PATCH", path, handler)
     }
 
     /// Registers a route for an arbitrary HTTP method string (e.g. `"OPTIONS"`).

@@ -1,24 +1,27 @@
 //! # tsu
 //!
-//! A fast, minimal HTTP framework for applications deployed behind a reverse
-//! proxy (nginx, ingress-nginx on Kubernetes).
+//! A minimal HTTP framework for Rust services behind a reverse proxy.
+//! Nothing more. Nothing less.
 //!
-//! ## Design contract
+//! ## The contract
 //!
-//! tsu delegates to the reverse-proxy layer:
+//! nginx handles TLS. nginx handles rate limiting. nginx handles slow clients
+//! and body sizes. So tsu doesn't.
 //!
-//! - **TLS termination** — handled by nginx / ingress
-//! - **Body-size limits** — `client_max_body_size` in nginx config
-//! - **Rate limiting** — nginx `limit_req` / ingress-nginx annotations
+//! What nginx / ingress already owns — tsu intentionally ignores:
+//!
+//! - **Body-size limits** — `client_max_body_size` in nginx
+//! - **Rate limiting** — `limit_req` / ingress-nginx annotations
 //! - **Slow-client protection** — nginx timeout and buffer settings
+//! - **TLS termination** — nginx SSL / k8s ingress
 //!
-//! tsu owns:
+//! What's left for tsu:
 //!
-//! - Ultra-fast radix-tree routing (O(path-length) lookup via [`matchit`])
-//! - Async request handling via tokio + hyper
-//! - Graceful shutdown on SIGTERM / Ctrl-C — mandatory for Kubernetes
-//! - Built-in `/healthz` and `/readyz` endpoints for k8s probes
-//! - Structured tracing via the [`tracing`] crate
+//! - Radix-tree routing — O(path-length) lookup via [`matchit`]
+//! - Async I/O — tokio, raw HTTP/1.1, no hyper
+//! - Graceful shutdown — SIGTERM / Ctrl-C, waits for in-flight requests
+//! - Health probes — `/healthz` and `/readyz` for Kubernetes
+//! - Structured tracing — [`tracing`] crate
 //!
 //! ## Quick start
 //!
@@ -62,6 +65,6 @@ pub use error::Error;
 pub use handler::Handler;
 pub use request::Request;
 pub use response::{ContentType, IntoResponse, Response};
-pub use status::Status;
 pub use router::Router;
 pub use server::Server;
+pub use status::Status;

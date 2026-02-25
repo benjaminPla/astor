@@ -1,33 +1,29 @@
 //! HTTP server and graceful shutdown.
 //!
-//! # Why no hyper / http crate
+//! # Why not hyper?
 //!
-//! nginx validates all HTTP protocol correctness from untrusted clients before
-//! forwarding. The nginx → tsu connection is a trusted HTTP/1.1 stream, so a
-//! simple line-oriented parser over a tokio `BufReader` is enough.
+//! Because nginx already validated every HTTP quirk from the untrusted client
+//! before forwarding. The nginx → tsu link is a clean, trusted HTTP/1.1
+//! stream. A line-oriented parser over a tokio `BufReader` is enough.
+//! Pulling in hyper for that would be like hiring a bouncer for your living room.
 //!
-//! # Required nginx setting: `proxy_buffering on`
+//! # `proxy_buffering on` — not optional
 //!
-//! tsu only reads `Content-Length`-framed bodies. nginx with
-//! `proxy_buffering on` (the default) always buffers the full client body and
-//! forwards it to the backend with a `Content-Length` header. **Never set
-//! `proxy_buffering off`** — doing so allows nginx to forward chunked bodies
-//! that tsu cannot parse.
+//! tsu reads `Content-Length`-framed bodies only. `proxy_buffering on`
+//! (the nginx default) ensures the full body arrives with a `Content-Length`
+//! header. Set it to `off` and you get chunked bodies tsu cannot parse.
+//! Don't do it.
 //!
-//! # Keep-alive
+//! # Keep-alive — nginx's business, not ours
 //!
-//! Connection lifetime is managed entirely by nginx, not tsu. nginx configured
-//! with `proxy_http_version 1.1` and `proxy_set_header Connection ""` reuses
-//! TCP connections to tsu based on its own `keepalive_timeout` and
-//! `keepalive_requests` upstream settings. tsu loops until nginx closes the
-//! connection (EOF) — it does not inspect the `Connection` header.
+//! nginx reuses connections to tsu. tsu loops until nginx closes them (EOF).
+//! We never inspect the `Connection` header. nginx handles it. Let it.
 //!
 //! # Graceful shutdown
 //!
-//! On SIGTERM/Ctrl-C the accept loop stops immediately. In-flight connection
-//! tasks run to completion before `serve` returns. Set
-//! `terminationGracePeriodSeconds` longer than your slowest request so k8s
-//! doesn't SIGKILL before drain finishes.
+//! On SIGTERM / Ctrl-C: accept loop stops, in-flight tasks drain, then exit.
+//! Set `terminationGracePeriodSeconds` longer than your slowest request or k8s
+//! SIGKILLs the pod before drain finishes. That is not graceful shutdown.
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -138,7 +134,7 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         // ── Dispatch ──────────────────────────────────────────────────────────
         let response = match router.lookup(&method, &path) {
             Some((handler, params)) => {
-                handler.call(Request::new(method, path, headers, body, params)).await
+                handler.call(Request::new(body, headers, method, params, path)).await
             }
             None => Response::status(Status::NotFound),
         };

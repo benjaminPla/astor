@@ -4,35 +4,32 @@
 //!   RUST_LOG=info cargo run --example basic
 //!
 //! Try:
-//!   curl http://localhost:3000/users/42
-//!   curl -X POST http://localhost:3000/users \
-//!        -H 'content-type: application/json' -d '{"name":"alice"}'
-//!   curl -X PATCH http://localhost:3000/users/42 \
-//!        -H 'content-type: application/json' -d '{"name":"bob"}'
-//!   curl -X DELETE http://localhost:3000/users/42
-//!   curl http://localhost:3000/xml
-//!   curl http://localhost:3000/redirect
 //!   curl http://localhost:3000/healthz
 //!   curl http://localhost:3000/readyz
+//!   curl http://localhost:3000/redirect
+//!   curl http://localhost:3000/users/42
+//!   curl http://localhost:3000/xml
+//!   curl -X DELETE http://localhost:3000/users/42
+//!   curl -X PATCH  http://localhost:3000/users/42 \
+//!        -H 'content-type: application/json' -d '{"name":"bob"}'
+//!   curl -X POST   http://localhost:3000/users \
+//!        -H 'content-type: application/json' -d '{"name":"alice"}'
 
-use tsu::{ContentType, Request, Response, Router, Server, Status, health};
+use tsu::{ContentType, health, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
 
     let app = Router::new()
-        // CRUD
-        .get("/users/:id",    get_user)
-        .post("/users",       create_user)
-        .patch("/users/:id",  update_user)
         .delete("/users/:id", delete_user)
-        // Other response types
-        .get("/xml",      xml_response)
-        .get("/redirect", redirect)
-        // Health probes — always register these for k8s
-        .get("/healthz",  health::liveness)
-        .get("/readyz",   health::readiness);
+        .get("/healthz",      health::liveness)
+        .get("/readyz",       health::readiness)
+        .get("/redirect",     redirect)
+        .get("/users/:id",    get_user)
+        .get("/xml",          xml_response)
+        .patch("/users/:id",  update_user)
+        .post("/users",       create_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.expect("server error");
 }

@@ -1,11 +1,11 @@
 //! Built-in Kubernetes health-check handlers.
 //!
-//! Kubernetes uses two HTTP probes to manage pod lifecycle:
+//! Kubernetes asks two questions. tsu answers them.
 //!
-//! | Probe | Typical path | Meaning |
+//! | Probe | Path | Question |
 //! |---|---|---|
-//! | **Liveness** | `/healthz` | "Is the process alive?" Failure triggers a **restart**. |
-//! | **Readiness** | `/readyz` | "Can the pod serve traffic?" Failure **removes it from the load-balancer** but does not restart it. |
+//! | **Liveness** | `/healthz` | Is the process alive? Failure → restart. |
+//! | **Readiness** | `/readyz` | Can the pod serve traffic? Failure → pulled from load-balancer. |
 //!
 //! Register them on your router:
 //!

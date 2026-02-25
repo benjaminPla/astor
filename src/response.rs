@@ -1,4 +1,7 @@
 //! Outgoing HTTP response type and the [`IntoResponse`] conversion trait.
+//!
+//! You should not need to think about this module directly. Build a [`Response`]
+//! in your handler and return it. That is the entire job description.
 
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
@@ -8,31 +11,31 @@ use crate::status::Status;
 
 /// Common content-type values for use with [`ResponseBuilder::bytes`].
 pub enum ContentType {
-    Json,         // application/json
-    Text,         // text/plain; charset=utf-8
-    Html,         // text/html; charset=utf-8
-    Xml,          // application/xml
-    OctetStream,  // application/octet-stream  (binary / file download)
-    FormData,     // application/x-www-form-urlencoded
-    EventStream,  // text/event-stream  (SSE)
     Csv,          // text/csv
-    Pdf,          // application/pdf
+    EventStream,  // text/event-stream  (SSE)
+    FormData,     // application/x-www-form-urlencoded
+    Html,         // text/html; charset=utf-8
+    Json,         // application/json
     MsgPack,      // application/msgpack
+    OctetStream,  // application/octet-stream  (binary / file download)
+    Pdf,          // application/pdf
+    Text,         // text/plain; charset=utf-8
+    Xml,          // application/xml
 }
 
 impl ContentType {
     fn as_str(&self) -> &'static str {
         match self {
-            Self::Json        => "application/json",
-            Self::Text        => "text/plain; charset=utf-8",
-            Self::Html        => "text/html; charset=utf-8",
-            Self::Xml         => "application/xml",
-            Self::OctetStream => "application/octet-stream",
-            Self::FormData    => "application/x-www-form-urlencoded",
-            Self::EventStream => "text/event-stream",
             Self::Csv         => "text/csv",
-            Self::Pdf         => "application/pdf",
+            Self::EventStream => "text/event-stream",
+            Self::FormData    => "application/x-www-form-urlencoded",
+            Self::Html        => "text/html; charset=utf-8",
+            Self::Json        => "application/json",
             Self::MsgPack     => "application/msgpack",
+            Self::OctetStream => "application/octet-stream",
+            Self::Pdf         => "application/pdf",
+            Self::Text        => "text/plain; charset=utf-8",
+            Self::Xml         => "application/xml",
         }
     }
 }
@@ -66,9 +69,9 @@ impl ContentType {
 ///     .bytes(ContentType::Xml, b"<ok/>".to_vec());
 /// ```
 pub struct Response {
-    pub(crate) status: u16,
-    pub(crate) headers: Vec<(String, String)>,
     pub(crate) body: Vec<u8>,
+    pub(crate) headers: Vec<(String, String)>,
+    pub(crate) status: u16,
 }
 
 impl Response {
@@ -88,19 +91,19 @@ impl Response {
 
     /// Response with no body.
     pub fn status(code: Status) -> Self {
-        Self { status: code.into(), headers: Vec::new(), body: Vec::new() }
+        Self { body: Vec::new(), headers: Vec::new(), status: code.into() }
     }
 
     /// Builder for responses that need a custom status or extra headers.
     pub fn builder() -> ResponseBuilder {
-        ResponseBuilder { status: Status::Ok.into(), headers: Vec::new() }
+        ResponseBuilder { headers: Vec::new(), status: Status::Ok.into() }
     }
 
     fn bytes_raw(content_type: &str, body: Vec<u8>) -> Self {
         Self {
-            status: Status::Ok.into(),
-            headers: vec![("content-type".to_owned(), content_type.to_owned())],
             body,
+            headers: vec![("content-type".to_owned(), content_type.to_owned())],
+            status: Status::Ok.into(),
         }
     }
 
@@ -130,8 +133,8 @@ impl Response {
 /// Obtain via [`Response::builder()`]. Defaults to `Status::Ok` (200).
 /// Terminated by a typed body method — you always know what you're sending.
 pub struct ResponseBuilder {
-    status: u16,
     headers: Vec<(String, String)>,
+    status: u16,
 }
 
 impl ResponseBuilder {
@@ -162,13 +165,13 @@ impl ResponseBuilder {
 
     /// Terminate with no body (e.g. `Status::NoContent`, `Status::MovedPermanently`).
     pub fn no_body(self) -> Response {
-        Response { status: self.status, headers: self.headers, body: Vec::new() }
+        Response { body: Vec::new(), headers: self.headers, status: self.status }
     }
 
     fn finish(self, content_type: &str, body: Vec<u8>) -> Response {
         let mut headers = vec![("content-type".to_owned(), content_type.to_owned())];
         headers.extend(self.headers);
-        Response { status: self.status, headers, body }
+        Response { body, headers, status: self.status }
     }
 }
 
