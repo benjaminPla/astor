@@ -49,10 +49,12 @@ impl Router {
     }
 
     fn add(mut self, method: &str, path: &str, handler: impl Handler) -> Self {
+        // matchit 0.8 uses `{param}` syntax; translate the conventional `:param` form.
+        let path = colon_to_braces(path);
         self.routes
             .entry(method.to_uppercase())
             .or_insert_with(MatchitRouter::new)
-            .insert(path, handler.into_boxed_handler())
+            .insert(path.clone(), handler.into_boxed_handler())
             .unwrap_or_else(|e| panic!("invalid route `{path}`: {e}"));
         self
     }
@@ -74,4 +76,22 @@ impl Router {
 
 impl Default for Router {
     fn default() -> Self { Self::new() }
+}
+
+// Translates `:param` segments to `{param}` for matchit 0.8+.
+fn colon_to_braces(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for segment in path.split('/') {
+        out.push('/');
+        if let Some(name) = segment.strip_prefix(':') {
+            out.push('{');
+            out.push_str(name);
+            out.push('}');
+        } else {
+            out.push_str(segment);
+        }
+    }
+    // split('/') on "/users/:id" yields ["", "users", ":id"] — the leading
+    // '/' is already added by the first iteration, strip the extra one.
+    out[1..].to_owned()
 }

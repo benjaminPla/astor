@@ -9,6 +9,10 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- Path parameters (`/users/:id`) now match correctly. matchit 0.8 switched from `:param` to `{param}` syntax; astor now translates at registration time so user-facing API is unchanged.
+
 ### Removed
 
 - `tracing` dependency — astor is a library; consumers bring their own logging. Errors surface via `Result`.
