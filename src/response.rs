@@ -47,7 +47,7 @@ impl ContentType {
 /// # Shortcuts (200 OK, no custom headers needed)
 ///
 /// ```rust
-/// use tsu::{Response, Status};
+/// use astor::{Response, Status};
 ///
 /// Response::json(br#"{"id":1}"#.to_vec());
 /// Response::text("hello");
@@ -57,7 +57,7 @@ impl ContentType {
 /// # Builder (custom status or headers)
 ///
 /// ```rust
-/// use tsu::{Response, ContentType, Status};
+/// use astor::{Response, ContentType, Status};
 ///
 /// Response::builder()
 ///     .status(Status::Created)
@@ -184,7 +184,7 @@ impl ResponseBuilder {
 /// # Example — typed `Json<T>` wrapper with serde
 ///
 /// ```rust,ignore
-/// use tsu::{IntoResponse, Response, Status};
+/// use astor::{IntoResponse, Response, Status};
 /// use serde::Serialize;
 ///
 /// struct Json<T: Serialize>(T);

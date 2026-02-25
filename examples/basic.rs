@@ -1,4 +1,4 @@
-//! tsu example — covers every Response variant and common handler patterns.
+//! astor example — covers every Response variant and common handler patterns.
 //!
 //! Run:
 //!   RUST_LOG=info cargo run --example basic
@@ -15,7 +15,7 @@
 //!   curl -X POST   http://localhost:3000/users \
 //!        -H 'content-type: application/json' -d '{"name":"alice"}'
 
-use tsu::{ContentType, health, Request, Response, Router, Server, Status};
+use astor::{ContentType, health, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {

@@ -1,6 +1,6 @@
 //! Built-in Kubernetes health-check handlers.
 //!
-//! Kubernetes asks two questions. tsu answers them.
+//! Kubernetes asks two questions. astor answers them.
 //!
 //! | Probe | Path | Question |
 //! |---|---|---|
@@ -10,7 +10,7 @@
 //! Register them on your router:
 //!
 //! ```rust,no_run
-//! use tsu::{Router, health};
+//! use astor::{Router, health};
 //!
 //! let app = Router::new()
 //!     .get("/healthz", health::liveness)
@@ -21,7 +21,7 @@
 //! dependency availability (database connections, downstream services, etc.):
 //!
 //! ```rust,no_run
-//! use tsu::{Request, Response, Status};
+//! use astor::{Request, Response, Status};
 //!
 //! async fn readiness(_req: Request) -> Response {
 //!     if dependencies_are_healthy().await {

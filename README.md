@@ -1,9 +1,9 @@
-# tsu
+# astor
 
-[![Crates.io](https://img.shields.io/crates/v/tsu)](https://crates.io/crates/tsu)
-[![docs.rs](https://img.shields.io/docsrs/tsu)](https://docs.rs/tsu)
+[![Crates.io](https://img.shields.io/crates/v/astor)](https://crates.io/crates/astor)
+[![docs.rs](https://img.shields.io/docsrs/astor)](https://docs.rs/astor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/benjaminPla/tsu/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminPla/tsu/actions)
+[![CI](https://github.com/benjaminPla/astor/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminPla/astor/actions)
 
 > Minimal HTTP framework for Rust. Lives behind nginx. Does its job. Goes home.
 
@@ -13,25 +13,25 @@ Your nginx handles slow clients, body sizes, and half the other things framework
 
 **So what exactly is your framework supposed to duplicate?**
 
-Nothing. tsu doesn't touch any of that. The proxy does proxy things. The framework does framework things. This is not a controversial opinion.
+Nothing. astor doesn't touch any of that. The proxy does proxy things. The framework does framework things. This is not a controversial opinion.
 
 ---
 
 ## The deal
 
-tsu sits behind nginx or ingress-nginx. The proxy covers the hard, boring, already-solved stuff. tsu covers your routes.
+astor sits behind nginx or ingress-nginx. The proxy covers the hard, boring, already-solved stuff. astor covers your routes.
 
 What the proxy already owns — and why we sleep soundly knowing it:
 
-| nginx / ingress handles this | what tsu thinks about it |
+| nginx / ingress handles this | what astor thinks about it |
 |---|---|
 | Body-size limits | `client_max_body_size` in nginx. Done. |
-| HTTP/2 + HTTP/3 to clients | nginx negotiates protocol. tsu speaks plain HTTP/1.1. |
+| HTTP/2 + HTTP/3 to clients | nginx negotiates protocol. astor speaks plain HTTP/1.1. |
 | Rate limiting | `limit_req` or ingress-nginx annotations. Not our concern. |
 | Slow-client & DDoS protection | nginx timeouts and buffers. We trust nginx. |
 | TLS termination | nginx SSL / k8s ingress TLS. Obviously. |
 
-What's left for tsu — which is, coincidentally, the only part that changes between applications:
+What's left for astor — which is, coincidentally, the only part that changes between applications:
 
 | What | How |
 |---|---|
@@ -48,12 +48,12 @@ What's left for tsu — which is, coincidentally, the only part that changes bet
 ```toml
 # Cargo.toml
 [dependencies]
-tsu   = "0.1"
+astor   = "0.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use tsu::{Router, Server, Request, Response, health};
+use astor::{Router, Server, Request, Response, health};
 
 #[tokio::main]
 async fn main() {
@@ -104,7 +104,7 @@ async fn get_repo(req: Request) -> Response {
 All status codes go through `Status`. Every IANA-registered code is a named variant — no magic integers:
 
 ```rust
-use tsu::Status;
+use astor::Status;
 
 Status::Ok                     // 200
 Status::Created                // 201
@@ -121,7 +121,7 @@ Status::ServiceUnavailable     // 503
 ### Shortcuts — `200 OK`, no custom headers needed
 
 ```rust
-use tsu::{Response, Status};
+use astor::{Response, Status};
 
 // JSON — bytes from your serialiser, directly. No intermediate allocation.
 // serde_json:  Response::json(serde_json::to_vec(&val).unwrap())
@@ -141,7 +141,7 @@ Response::status(Status::NotFound)
 Ends with a typed body call. You always know exactly what you're sending.
 
 ```rust
-use tsu::{Response, ContentType, Status};
+use astor::{Response, ContentType, Status};
 
 // 201 Created with Location header, JSON body
 Response::builder()
@@ -178,7 +178,7 @@ Response::builder()
 
 ### Reading request bodies
 
-`req.body()` returns `&[u8]`. Parse it however you want — tsu never touches the bytes:
+`req.body()` returns `&[u8]`. Parse it however you want — astor never touches the bytes:
 
 ```rust
 async fn create_user(req: Request) -> Response {
@@ -197,7 +197,7 @@ async fn create_user(req: Request) -> Response {
 Implement `IntoResponse` on your own types and return them directly from handlers. No `Response` construction scattered across every call site:
 
 ```rust
-use tsu::{IntoResponse, Response, Status};
+use astor::{IntoResponse, Response, Status};
 use serde::Serialize;
 
 struct Json<T: Serialize>(T);
@@ -220,7 +220,7 @@ async fn get_user(_req: Request) -> Json<User> {
 Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `Status`.
 
 ```rust
-// Return Status directly — tsu wraps it. No boilerplate.
+// Return Status directly — astor wraps it. No boilerplate.
 async fn delete_user(_req: Request) -> Status { Status::NoContent }
 ```
 
@@ -231,7 +231,7 @@ async fn delete_user(_req: Request) -> Status { Status::NoContent }
 Kubernetes needs to know if your pod is alive and ready. Two endpoints. Always 200 if the process can respond. That's it.
 
 ```rust
-use tsu::{Router, health};
+use astor::{Router, health};
 
 let app = Router::new()
     .get("/healthz", health::liveness)   // is the process alive?
@@ -265,23 +265,23 @@ curl http://localhost:3000/users/42
 
 See [`nginx/nginx.conf`](nginx/nginx.conf) for a production-ready configuration.
 
-**How keep-alive works — and why tsu doesn't manage it:**
+**How keep-alive works — and why astor doesn't manage it:**
 
 ```
-client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► tsu
+client ──(h2/h1.1)──► nginx ──(HTTP/1.1 keep-alive pool)──► astor
 ```
 
-nginx maintains a pool of idle TCP connections to tsu. Requests reuse those connections — no handshake per request. tsu loops on each connection until nginx closes it. Connection lifetime is nginx's business. tsu doesn't inspect the `Connection` header, and it never will.
+nginx maintains a pool of idle TCP connections to astor. Requests reuse those connections — no handshake per request. astor loops on each connection until nginx closes it. Connection lifetime is nginx's business. astor doesn't inspect the `Connection` header, and it never will.
 
 **Required proxy settings:**
 
 ```nginx
 proxy_http_version 1.1;
 proxy_set_header   Connection "";   # clears nginx's default "close", enabling keep-alive
-client_max_body_size 10m;           # enforced by nginx, not tsu
+client_max_body_size 10m;           # enforced by nginx, not astor
 
 # REQUIRED — do not set to off.
-# tsu only reads Content-Length-framed bodies. proxy_buffering on (the default)
+# astor only reads Content-Length-framed bodies. proxy_buffering on (the default)
 # guarantees nginx buffers the full request body before forwarding it.
 proxy_buffering on;
 ```
@@ -289,7 +289,7 @@ proxy_buffering on;
 **Tuning the upstream connection pool** (in the `upstream` block):
 
 ```nginx
-upstream tsu_backend {
+upstream astor_backend {
     server 127.0.0.1:3000;
 
     keepalive 64;            # idle connections per worker — raise if you see TCP churn
@@ -312,7 +312,7 @@ See the manifests in [`k8s/`](k8s/):
 | `ingress.yaml` | ingress-nginx with TLS, body-size, and keepalive annotations |
 | `service.yaml` | ClusterIP service on port 3000 |
 
-**Required:** set `terminationGracePeriodSeconds` longer than your slowest request. Otherwise k8s SIGKILLs the pod before tsu finishes draining. That is not graceful shutdown.
+**Required:** set `terminationGracePeriodSeconds` longer than your slowest request. Otherwise k8s SIGKILLs the pod before astor finishes draining. That is not graceful shutdown.
 
 ```yaml
 spec:

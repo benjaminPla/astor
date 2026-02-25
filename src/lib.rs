@@ -1,4 +1,4 @@
-//! # tsu
+//! # astor
 //!
 //! A minimal HTTP framework for Rust services behind a reverse proxy.
 //! Nothing more. Nothing less.
@@ -6,16 +6,16 @@
 //! ## The contract
 //!
 //! nginx handles TLS. nginx handles rate limiting. nginx handles slow clients
-//! and body sizes. So tsu doesn't.
+//! and body sizes. So astor doesn't.
 //!
-//! What nginx / ingress already owns — tsu intentionally ignores:
+//! What nginx / ingress already owns — astor intentionally ignores:
 //!
 //! - **Body-size limits** — `client_max_body_size` in nginx
 //! - **Rate limiting** — `limit_req` / ingress-nginx annotations
 //! - **Slow-client protection** — nginx timeout and buffer settings
 //! - **TLS termination** — nginx SSL / k8s ingress
 //!
-//! What's left for tsu:
+//! What's left for astor:
 //!
 //! - Radix-tree routing — O(path-length) lookup via [`matchit`]
 //! - Async I/O — tokio, raw HTTP/1.1, no hyper
@@ -26,7 +26,7 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use tsu::{Router, Server, Request, Response};
+//! use astor::{Router, Server, Request, Response};
 //!
 //! #[tokio::main]
 //! async fn main() {
@@ -41,7 +41,7 @@
 //! }
 //!
 //! async fn hello(_req: Request) -> Response {
-//!     Response::text("Hello from tsu!")
+//!     Response::text("Hello from astor!")
 //! }
 //!
 //! async fn get_user(req: Request) -> Response {

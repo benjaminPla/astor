@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-/// The error type returned by tsu's fallible operations.
+/// The error type returned by astor's fallible operations.
 ///
 /// Not for 404s. Not for validation failures. Those are responses, not errors.
 /// This is for infrastructure failures — port binding, connection acceptance.

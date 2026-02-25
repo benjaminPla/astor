@@ -1,9 +1,9 @@
-# Contributing to tsu
+# Contributing to astor
 
-tsu exists for one reason: Rust services behind a reverse proxy. Not Rust services that *are* a reverse proxy. Keep that in mind before opening a PR.
+astor exists for one reason: Rust services behind a reverse proxy. Not Rust services that *are* a reverse proxy. Keep that in mind before opening a PR.
 
 If your idea belongs in nginx config, it does not belong here.
-If your idea makes tsu better at being tsu, welcome.
+If your idea makes astor better at being astor, welcome.
 
 ---
 
@@ -33,8 +33,8 @@ Be respectful. Be direct. Be constructive. Harassment of any kind is not tolerat
 2. **Clone** your fork.
 
 ```sh
-git clone https://github.com/<your-username>/tsu.git
-cd tsu
+git clone https://github.com/<your-username>/astor.git
+cd astor
 ```
 
 3. **Create a branch** from `master`.
@@ -54,7 +54,7 @@ Before filing a bug:
 
 A good bug report includes:
 
-- tsu version (`Cargo.toml`)
+- astor version (`Cargo.toml`)
 - Rust toolchain version (`rustc --version`)
 - A minimal reproducer
 - What you expected vs. what actually happened
@@ -66,7 +66,7 @@ A good bug report includes:
 Open a GitHub Discussion or an issue tagged `enhancement`. Before you do, ask yourself:
 
 - Does the reverse proxy already handle this? (If yes, the answer is no.)
-- Is this useful to most tsu users, or just your specific setup?
+- Is this useful to most astor users, or just your specific setup?
 - Can it be opt-in via a Cargo feature flag?
 
 Small, focused changes that do one thing well. Not large multi-feature PRs that do several things loosely.
@@ -118,7 +118,7 @@ cargo clippy -- -D warnings
 cargo fmt
 ```
 
-tsu's dependencies in production code: `tokio`, `matchit`, `tracing`. That's three. New dependencies require a very good reason and prior discussion. "It would be convenient" is not a good reason.
+astor's dependencies in production code: `tokio`, `matchit`, `tracing`. That's three. New dependencies require a very good reason and prior discussion. "It would be convenient" is not a good reason.
 
 ---
 
@@ -135,7 +135,7 @@ tsu's dependencies in production code: `tokio`, `matchit`, `tracing`. That's thr
 
 ## Versioning
 
-tsu follows [Semantic Versioning](https://semver.org):
+astor follows [Semantic Versioning](https://semver.org):
 
 | Change | Bump |
 |---|---|
@@ -143,7 +143,7 @@ tsu follows [Semantic Versioning](https://semver.org):
 | New backwards-compatible feature | minor (`0.1.0 → 0.2.0`) |
 | Bug fix, internal refactor, docs | patch (`0.1.0 → 0.1.1`) |
 
-While in `0.x`, minor bumps may include breaking changes. This will be clearly noted in `CHANGELOG.md`. Every release is tagged `vX.Y.Z` and published to [crates.io](https://crates.io/crates/tsu).
+While in `0.x`, minor bumps may include breaking changes. This will be clearly noted in `CHANGELOG.md`. Every release is tagged `vX.Y.Z` and published to [crates.io](https://crates.io/crates/astor).
 
 ---
 

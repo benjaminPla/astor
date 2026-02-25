@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: tsu-service
+  name: astor-service
 spec:
   # ClusterIP is the right type when ingress-nginx sits in front.
   # Do not use LoadBalancer here — that bypasses the ingress layer.
   type: ClusterIP
   selector:
-    app: tsu-app
+    app: astor-app
   ports:
     - name: http
       port: 80

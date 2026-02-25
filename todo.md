@@ -3,4 +3,4 @@
 - [] remove logs/tracing => that's user (developers) work
 - [] see how to split crate in features and put "health" into one
 - [] make sure /examples is not in the final code
-- [] see if we can create a tsu.conf/tsu.yaml (the cheaper/faster to compile and go though) and try fancy things like `force_statuses_on_response: true` to enforce devs to use Response::status(Status:Ok) insted of 200, and others configs like no Response::binary and explici json or whatever
+- [] pipeline => `crate publish`

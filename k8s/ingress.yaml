@@ -1,13 +1,13 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: tsu-ingress
+  name: astor-ingress
   annotations:
     # ── Controller ───────────────────────────────────────────────────────────
     kubernetes.io/ingress.class: "nginx"
 
     # ── Body-size limit ───────────────────────────────────────────────────────
-    # Enforced by ingress-nginx (nginx), not tsu.
+    # Enforced by ingress-nginx (nginx), not astor.
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
 
     # ── Timeouts ──────────────────────────────────────────────────────────────
@@ -18,15 +18,15 @@ metadata:
 
     # ── Body buffering — REQUIRED ─────────────────────────────────────────────
     # ingress-nginx enables proxy_buffering by default. Never set this to "off".
-    # tsu only reads Content-Length-framed bodies; chunked bodies will break it.
+    # astor only reads Content-Length-framed bodies; chunked bodies will break it.
     nginx.ingress.kubernetes.io/proxy-buffering: "on"
 
     # ── Keep-alive connections from ingress to pods ──────────────────────────
     #
     # How it works:
-    #   ingress-nginx keeps a pool of idle TCP connections to tsu pods.
+    #   ingress-nginx keeps a pool of idle TCP connections to astor pods.
     #   Requests are multiplexed over these connections instead of opening a
-    #   new TCP connection per request. tsu loops on the connection until
+    #   new TCP connection per request. astor loops on the connection until
     #   ingress-nginx closes it based on the timeout/requests limits below.
     #
     # upstream-keepalive-connections: idle connections kept per nginx worker.
@@ -51,7 +51,7 @@ metadata:
     nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
 
     # ── Security headers ──────────────────────────────────────────────────────
-    # Injected by the ingress controller — not duplicated in tsu.
+    # Injected by the ingress controller — not duplicated in astor.
     nginx.ingress.kubernetes.io/configuration-snippet: |
       add_header X-Frame-Options        "DENY"          always;
       add_header X-Content-Type-Options "nosniff"       always;
@@ -61,8 +61,8 @@ spec:
   tls:
     - hosts:
         - example.com
-      # Create with: kubectl create secret tls tsu-tls --cert=cert.pem --key=key.pem
-      secretName: tsu-tls
+      # Create with: kubectl create secret tls astor-tls --cert=cert.pem --key=key.pem
+      secretName: astor-tls
 
   rules:
     - host: example.com
@@ -72,6 +72,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: tsu-service
+                name: astor-service
                 port:
                   name: http

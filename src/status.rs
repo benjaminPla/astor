@@ -4,7 +4,7 @@
 //! `Response::builder().status()`, or as a bare handler return value.
 //!
 //! ```rust
-//! use tsu::{Response, Status};
+//! use astor::{Response, Status};
 //!
 //! Response::status(Status::NoContent);
 //! Response::status(204);               // u16 still works
@@ -15,7 +15,7 @@
 //!     .json(bytes);
 //!
 //! // Return a status directly from a handler
-//! async fn delete(_req: tsu::Request) -> Status {
+//! async fn delete(_req: astor::Request) -> Status {
 //!     Status::NoContent
 //! }
 //! ```

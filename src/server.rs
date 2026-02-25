@@ -3,20 +3,20 @@
 //! # Why not hyper?
 //!
 //! Because nginx already validated every HTTP quirk from the untrusted client
-//! before forwarding. The nginx → tsu link is a clean, trusted HTTP/1.1
+//! before forwarding. The nginx → astor link is a clean, trusted HTTP/1.1
 //! stream. A line-oriented parser over a tokio `BufReader` is enough.
 //! Pulling in hyper for that would be like hiring a bouncer for your living room.
 //!
 //! # `proxy_buffering on` — not optional
 //!
-//! tsu reads `Content-Length`-framed bodies only. `proxy_buffering on`
+//! astor reads `Content-Length`-framed bodies only. `proxy_buffering on`
 //! (the nginx default) ensures the full body arrives with a `Content-Length`
-//! header. Set it to `off` and you get chunked bodies tsu cannot parse.
+//! header. Set it to `off` and you get chunked bodies astor cannot parse.
 //! Don't do it.
 //!
 //! # Keep-alive — nginx's business, not ours
 //!
-//! nginx reuses connections to tsu. tsu loops until nginx closes them (EOF).
+//! nginx reuses connections to astor. astor loops until nginx closes them (EOF).
 //! We never inspect the `Connection` header. nginx handles it. Let it.
 //!
 //! # Graceful shutdown
@@ -55,7 +55,7 @@ impl Server {
         let listener = TcpListener::bind(self.addr).await?;
         let router = Arc::new(router);
 
-        info!(addr = %self.addr, "tsu listening");
+        info!(addr = %self.addr, "astor listening");
 
         let mut tasks = tokio::task::JoinSet::new();
         let shutdown = shutdown_signal();
@@ -88,7 +88,7 @@ impl Server {
         }
 
         while tasks.join_next().await.is_some() {}
-        info!("tsu stopped");
+        info!("astor stopped");
         Ok(())
     }
 }
@@ -99,7 +99,7 @@ impl Server {
 ///
 /// Loops until nginx closes the connection (EOF). nginx controls connection
 /// lifetime via `keepalive_timeout` and `keepalive_requests` in the upstream
-/// block — tsu never inspects the `Connection` header.
+/// block — astor never inspects the `Connection` header.
 async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), Error> {
     let (read_half, mut write_half) = stream.into_split();
     let mut reader = BufReader::new(read_half);

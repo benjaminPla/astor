@@ -1,9 +1,9 @@
 # Changelog
 
-All notable changes to tsu are documented here.
+All notable changes to astor are documented here.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-tsu adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
@@ -28,5 +28,5 @@ First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing,
 - Production nginx configuration (`nginx/nginx.conf`) and Kubernetes manifests (`k8s/`).
 - Raw tokio HTTP/1.1 parsing — no hyper, no http crate.
 
-[Unreleased]: https://github.com/benjaminPla/tsu/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/benjaminPla/tsu/releases/tag/v0.1.0
+[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/benjaminPla/astor/releases/tag/v0.1.0

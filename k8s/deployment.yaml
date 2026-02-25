@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tsu-app
+  name: astor-app
   labels:
-    app: tsu-app
+    app: astor-app
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: tsu-app
+      app: astor-app
   template:
     metadata:
       labels:
-        app: tsu-app
+        app: astor-app
     spec:
       containers:
         - name: app
-          image: your-registry/tsu-app:latest
+          image: your-registry/astor-app:latest
           ports:
             - name: http
               containerPort: 3000
@@ -57,7 +57,7 @@ spec:
             failureThreshold: 3
 
       # ── Graceful shutdown ─────────────────────────────────────────────────
-      # On SIGTERM, tsu stops accepting and drains in-flight requests.
+      # On SIGTERM, astor stops accepting and drains in-flight requests.
       # This value must be LONGER than your slowest request.
       # After this period Kubernetes sends SIGKILL regardless.
       terminationGracePeriodSeconds: 30

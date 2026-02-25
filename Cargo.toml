@@ -1,13 +1,13 @@
 [package]
-name = "tsu"
+name = "astor"
 version = "0.1.0"
 edition = "2024"
 description = "A fast, minimal HTTP framework for reverse-proxy deployments"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/benjaminPla/tsu"
-homepage = "https://github.com/benjaminPla/tsu"
-documentation = "https://docs.rs/tsu"
+repository = "https://github.com/benjaminPla/astor"
+homepage = "https://github.com/benjaminPla/astor"
+documentation = "https://docs.rs/astor"
 keywords = ["async", "framework", "http", "tokio", "web"]
 categories = ["web-programming::http-server", "asynchronous"]
 
