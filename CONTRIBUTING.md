@@ -19,6 +19,16 @@ If your idea makes astor better at being astor, welcome.
 
 ---
 
+## Ordering
+
+Everything in this codebase that can be alphabetically ordered, is. Enum variants. Function parameters. Struct fields. Imports. Table rows. Everything.
+
+This is not a stylistic preference. It is a rule. When things are ordered, you stop thinking about where they are and start thinking about what they do. You search for `Html` in the `ContentType` enum and your eye goes straight to the `H`s. You add a new variant and you know exactly where it lives. No debates, no "should this go before or after that" — alphabetical order is always the right answer and it is never wrong.
+
+If you open a PR and something that could be alphabetically ordered is not, it will be sent back.
+
+---
+
 ## People
 
 ### Maintainer

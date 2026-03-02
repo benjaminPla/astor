@@ -5,45 +5,28 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/benjaminPla/astor/actions/workflows/ci.yml/badge.svg)](https://github.com/benjaminPla/astor/actions)
 
-> Minimal HTTP framework for Rust. Lives behind nginx. Does its job. Goes home.
+> HTTP for Rust services behind a reverse proxy. Does its job. Goes home.
 
-Your nginx handles TLS.
-Your nginx handles rate limiting.
-Your nginx handles slow clients, body sizes, and half the other things frameworks love to re-implement.
-
-**So what exactly is your framework supposed to duplicate?**
-
-Nothing. astor doesn't touch any of that. The proxy does proxy things. The framework does framework things. This is not a controversial opinion.
+Two dependencies — [`matchit`] for routing, `tokio` for async I/O. No hyper. No http crate. No middleware stack you didn't ask for. astor routes requests, builds typed responses, and stays out of every problem the proxy already solved.
 
 ---
 
-## The deal
+## nginx handles this. astor doesn't.
 
-astor sits behind nginx or ingress-nginx. The proxy covers the hard, boring, already-solved stuff. astor covers your routes.
+astor is designed for the common deployment: your service lives behind nginx or ingress-nginx. The proxy already solved the hard problems. Re-implementing them in the framework is waste.
 
-What the proxy already owns — and why we sleep soundly knowing it:
+- **body size** — `client_max_body_size` in nginx ✓
+- **header size** — `large_client_header_buffers` in nginx ✓
+- **rate limiting** — `limit_req_zone` / ingress-nginx annotations ✓
+- **slow clients** — `client_body_timeout`, `client_header_timeout` in nginx ✓
+- **TLS** — nginx SSL / k8s ingress TLS ✓
+- **HTTP/2 + HTTP/3 to clients** — nginx negotiates; astor speaks HTTP/1.1 upstream ✓
 
-| nginx / ingress handles this | what astor thinks about it |
-|---|---|
-| Body-size limits | `client_max_body_size` in nginx. Done. |
-| HTTP/2 + HTTP/3 to clients | nginx negotiates protocol. astor speaks plain HTTP/1.1. |
-| Rate limiting | `limit_req` or ingress-nginx annotations. Not our concern. |
-| Slow-client & DDoS protection | nginx timeouts and buffers. We trust nginx. |
-| TLS termination | nginx SSL / k8s ingress TLS. Obviously. |
+What astor covers — the only part that changes between applications:
 
-What's left for astor — which is, coincidentally, the only part that changes between applications:
-
-| What | How |
-|---|---|
-| Async I/O | tokio |
-| Graceful shutdown | SIGTERM + Ctrl-C — drains in-flight requests before exit |
-| Radix-tree routing | [`matchit`] — O(path-length) lookup |
-
-## Dependencies
-
-astor keeps its dependency tree minimal by design. It speaks raw HTTP/1.1 over tokio — no hyper, no tower, no middleware stack you didn't ask for.
-
-Every crate that lives in `[dependencies]` is there because the alternative is re-implementing it badly. Everything else is your problem, not ours. You want logging? Bring your own. You want tracing? Wire it up in your app. astor surfaces errors as `Result` — catch them, log them however you like.
+- **Routing** — radix tree via [`matchit`], O(path-length) lookup, no allocations on the hot path
+- **Async I/O** — raw tokio, no hyper
+- **Graceful shutdown** — SIGTERM / Ctrl-C, drains in-flight requests before exit
 
 ---
 
@@ -57,202 +40,85 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use astor::{Method, Request, Response, Router, Server};
+use astor::{Method, Request, Response, Router, Server, Status};
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
-        .on(Method::Get, "/users/{id}", get_user);
+        .on(Method::Delete, "/users/{id}", delete_user)
+        .on(Method::Get,    "/users/{id}", get_user)
+        .on(Method::Post,   "/users",      create_user);
 
     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 }
 
+// req.param("id") → Option<&str>. Path params use {name} syntax.
 async fn get_user(req: Request) -> Response {
     let id = req.param("id").unwrap_or("unknown");
     Response::json(format!(r#"{{"id":"{id}"}}"#).into_bytes())
 }
-```
 
----
-
-## Routing
-
-```rust
-use astor::Method;
-
-router
-    .on(Method::Delete,  "/users/{id}",          delete_user)
-    .on(Method::Get,     "/users/{id}",          get_user)
-    .on(Method::Get,     "/orgs/{org}/repos/{repo}", get_repo)
-    .on(Method::Options, "/users",              options_users)
-    .on(Method::Patch,   "/users/{id}",          update_user)
-    .on(Method::Post,    "/users",              create_user);
-```
-
-Path parameters via `req.param("name")`:
-
-```rust
-async fn get_repo(req: Request) -> Response {
-    let org  = req.param("org").unwrap();
-    let repo = req.param("repo").unwrap();
-    Response::text(format!("{org}/{repo}"))
-}
-```
-
----
-
-## Responses
-
-### Status codes
-
-All status codes go through `Status`. Every IANA-registered code is a named variant — no magic integers:
-
-```rust
-use astor::Status;
-
-Status::Ok                     // 200
-Status::Created                // 201
-Status::NoContent              // 204
-Status::BadRequest             // 400
-Status::Unauthorized           // 401
-Status::NotFound               // 404
-Status::UnprocessableContent   // 422
-Status::TooManyRequests        // 429
-Status::InternalServerError    // 500
-Status::ServiceUnavailable     // 503
-```
-
-### Shortcuts — `200 OK`, no custom headers needed
-
-```rust
-use astor::{Response, Status};
-
-// JSON — bytes from your serialiser, directly. No intermediate allocation.
-// serde_json:  Response::json(serde_json::to_vec(&val).unwrap())
-// hand-built:  Response::json(format!(r#"{{"id":{id}}}"#).into_bytes())
-Response::json(bytes)
-
-// Plain text
-Response::text("hello")
-
-// No body
-Response::status(Status::NoContent)
-Response::status(Status::NotFound)
-```
-
-### Builder — custom status or extra headers
-
-Ends with a typed body call. You always know exactly what you're sending.
-
-```rust
-use astor::{Response, ContentType, Status};
-
-// 201 Created with Location header, JSON body
-Response::builder()
-    .status(Status::Created)
-    .header("location", "/users/42")
-    .json(bytes)
-
-// 301 redirect — no body
-Response::builder()
-    .status(Status::MovedPermanently)
-    .header("location", "/new-path")
-    .no_body()
-
-// Any content-type via the ContentType enum
-Response::builder()
-    .status(Status::Ok)
-    .bytes(ContentType::Xml, b"<users/>".to_vec())
-```
-
-### ContentType enum
-
-| Variant | Content-Type header |
-|---|---|
-| `ContentType::Csv` | `text/csv` |
-| `ContentType::EventStream` | `text/event-stream` |
-| `ContentType::FormData` | `application/x-www-form-urlencoded` |
-| `ContentType::Html` | `text/html; charset=utf-8` |
-| `ContentType::Json` | `application/json` |
-| `ContentType::MsgPack` | `application/msgpack` |
-| `ContentType::OctetStream` | `application/octet-stream` |
-| `ContentType::Pdf` | `application/pdf` |
-| `ContentType::Text` | `text/plain; charset=utf-8` |
-| `ContentType::Xml` | `application/xml` |
-
-### Reading request bodies
-
-`req.body()` returns `&[u8]`. Parse it however you want — astor never touches the bytes:
-
-```rust
+// req.body() → &[u8]. Parse with serde_json, simd-json, or anything else.
 async fn create_user(req: Request) -> Response {
     if req.body().is_empty() {
         return Response::status(Status::BadRequest);
     }
-    let user: User = serde_json::from_slice(req.body()).unwrap();
-    Response::json(serde_json::to_vec(&user).unwrap())
-}
-```
-
----
-
-## Custom return types with `IntoResponse`
-
-Implement `IntoResponse` on your own types and return them directly from handlers. No `Response` construction scattered across every call site:
-
-```rust
-use astor::{IntoResponse, Response, Status};
-use serde::Serialize;
-
-struct Json<T: Serialize>(T);
-
-impl<T: Serialize> IntoResponse for Json<T> {
-    fn into_response(self) -> Response {
-        match serde_json::to_vec(&self.0) {
-            Ok(bytes) => Response::json(bytes),
-            Err(_)    => Response::status(Status::InternalServerError),
-        }
-    }
+    Response::builder()
+        .status(Status::Created)
+        .header("location", "/users/99")
+        .json(r#"{"id":"99"}"#.to_owned().into_bytes())
 }
 
-// Handler return type is inferred — no Response construction at the call site.
-async fn get_user(_req: Request) -> Json<User> {
-    Json(User { id: 1, name: "alice".into() })
-}
-```
-
-Built-in `IntoResponse` impls: `Response`, `String`, `&'static str`, `Status`.
-
-```rust
-// Return Status directly — astor wraps it. No boilerplate.
+// Return Status directly from a handler — astor wraps it into a response.
 async fn delete_user(_req: Request) -> Status { Status::NoContent }
 ```
 
 ---
 
-## Health checks
+## Status codes are a type, not a number
 
-Health endpoints are regular handlers — register them like any other route:
-
-```rust
-.on(Method::Get, "/healthz", liveness)
-.on(Method::Get, "/readyz",  readiness)
-
-async fn liveness(_req: Request) -> Response { Response::text("ok") }
-async fn readiness(_req: Request) -> Response { Response::text("ready") }
-```
-
-Gate readiness on dependency health if needed:
+astor has no free-form response constructor. You cannot pass a raw integer where a status code goes — the compiler stops you. Every status code is a named variant you can tab-complete, grep, and reason about.
 
 ```rust
-async fn readiness(_req: Request) -> Response {
-    if db_pool_is_healthy().await {
-        Response::text("ready")
-    } else {
-        Response::status(Status::ServiceUnavailable)
-    }
-}
+use astor::{Response, Status};
+
+// Named. Clear. Greppable. The compiler knows these are correct.
+Response::status(Status::NoContent)   // 204 — not "204", not 204, not 20_4
+Response::status(Status::NotFound)    // 404
+Response::status(Status::Created)     // 201
+
+// The builder enforces the same contract. Explicit at every step.
+// Not response(201, bytes) — there are no magic integers here.
+Response::builder()
+    .status(Status::Created)
+    .header("location", "/users/42")
+    .json(bytes)
+
+// Return Status directly from a handler — no Response construction needed.
+async fn delete_user(_req: Request) -> Status { Status::NoContent }
 ```
+
+Every IANA-registered code from 100 to 511 is a named variant — nothing more, nothing less. Full list on [docs.rs/astor](https://docs.rs/astor/latest/astor/enum.Status.html).
+
+---
+
+## Routing
+
+Paths use `{name}` parameter syntax. Multiple parameters per path are supported. Each `on()` call returns `self` — registrations chain.
+
+```rust
+use astor::Method;
+
+Router::new()
+    .on(Method::Delete,  "/users/{id}",            delete_user)
+    .on(Method::Get,     "/orgs/{org}/repos/{repo}", get_repo)
+    .on(Method::Get,     "/users/{id}",             get_user)
+    .on(Method::Options, "/users",                  options_users)
+    .on(Method::Patch,   "/users/{id}",             update_user)
+    .on(Method::Post,    "/users",                  create_user);
+```
+
+Retrieve parameters inside the handler with `req.param("name")`. Unmatched routes return `404 Not Found` automatically. Unknown method strings are rejected before they reach a handler.
 
 ---
 
@@ -337,13 +203,7 @@ spec:
 
 ---
 
-## A note on ordering
-
-Everything in this codebase that can be alphabetically ordered, is. Enum variants. Function parameters. Struct fields. Imports. Table rows. Everything.
-
-This is not a stylistic preference. It is a rule. When things are ordered, you stop thinking about where they are and start thinking about what they do. You search for `Html` in the `ContentType` enum and your eye goes straight to the `H`s. You add a new variant and you know exactly where it lives. No debates, no "should this go before or after that" — alphabetical order is always the right answer and it is never wrong.
-
-If you open a PR and something that could be alphabetically ordered is not, it will be sent back.
+Full API reference — types, methods, and examples: **[docs.rs/astor](https://docs.rs/astor)**
 
 ---
 
