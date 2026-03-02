@@ -11,6 +11,15 @@ astor adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [0.2.1] — 2026-03-02
+
+### Changed
+
+- Comprehensive `///` doc pass across all public APIs — every type, variant, and method now has rustdoc coverage.
+- README rewritten with philosophy-first approach, type safety section, and nginx delegation examples.
+
+---
+
 ## [0.2.0] — 2026-02-25
 
 ### Added
@@ -58,7 +67,8 @@ First release. The foundation is here. Radix-tree routing, raw HTTP/1.1 parsing,
 - nginx and Kubernetes deployment configuration documented in `README.md`.
 - Raw tokio HTTP/1.1 parsing — no hyper, no http crate.
 
-[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/benjaminPla/astor/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/benjaminPla/astor/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/benjaminPla/astor/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/benjaminPla/astor/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/benjaminPla/astor/releases/tag/v0.1.0
