@@ -1,7 +1,10 @@
 //! # astor
 //!
 //! A minimal HTTP framework for Rust services behind a reverse proxy.
-//! Nothing more. Nothing less.
+//!
+//! Two dependencies — [`matchit`](https://docs.rs/matchit) for routing,
+//! [`tokio`](https://docs.rs/tokio) for async I/O. No hyper. No http crate.
+//! No middleware stack you didn't ask for.
 //!
 //! ## The contract
 //!
@@ -10,18 +13,20 @@
 //! does framework things. Every feature astor skips is one nginx already
 //! ships, tested at scale, at no cost to you.
 //!
-//! What nginx / ingress already owns — astor intentionally ignores:
+//! | nginx / ingress-nginx handles | astor's take |
+//! |---|---|
+//! | Body-size limits | `client_max_body_size` — done. |
+//! | Header-size limits | `large_client_header_buffers` — done. |
+//! | Rate limiting | `limit_req_zone` / ingress annotations — done. |
+//! | Slow-client protection | nginx timeouts and buffers — done. |
+//! | TLS termination | nginx SSL / k8s ingress — obviously. |
+//! | HTTP/2 + HTTP/3 to clients | nginx negotiates; astor speaks HTTP/1.1 upstream. |
 //!
-//! - **Body-size limits** — `client_max_body_size` in nginx
-//! - **Rate limiting** — `limit_req` / ingress-nginx annotations
-//! - **Slow-client protection** — nginx timeout and buffer settings
-//! - **TLS termination** — nginx SSL / k8s ingress
+//! What astor covers — the only part that changes between applications:
 //!
-//! What's left for astor — the only part that changes between applications:
-//!
-//! - Radix-tree routing — O(path-length) lookup via [`matchit`]
-//! - Async I/O — tokio, raw HTTP/1.1, no hyper
-//! - Graceful shutdown — SIGTERM / Ctrl-C, drains in-flight requests
+//! - **Routing** — [`Router`] + [`matchit`](https://docs.rs/matchit), O(path-length) lookup
+//! - **Async I/O** — raw tokio, no hyper
+//! - **Graceful shutdown** — SIGTERM / Ctrl-C, drains in-flight requests
 //!
 //! ## Quick start
 //!
@@ -31,21 +36,24 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     let app = Router::new()
-//!         .on(Method::Get,  "/users/{id}", get_user)
-//!         .on(Method::Post, "/users",      create_user);
+//!         .on(Method::Delete, "/users/{id}", delete_user)
+//!         .on(Method::Get,    "/users/{id}", get_user)
+//!         .on(Method::Post,   "/users",      create_user);
 //!
 //!     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
 //! }
 //!
+//! // req.param("id") → Option<&str>
 //! async fn get_user(req: Request) -> Response {
 //!     let id = req.param("id").unwrap_or("unknown");
-//!     // astor sends bytes — it doesn't care how you build them:
+//!     // astor sends bytes — build them however you like:
 //!     //   serde_json::to_vec(&user).unwrap()
 //!     //   format!(r#"{{"id":"{id}"}}"#).into_bytes()
 //!     # let bytes: Vec<u8> = vec![];
 //!     Response::json(bytes)
 //! }
 //!
+//! // req.body() → &[u8] — parse with serde_json, simd-json, or anything
 //! async fn create_user(req: Request) -> Response {
 //!     if req.body().is_empty() {
 //!         return Response::status(Status::BadRequest);
@@ -56,7 +64,45 @@
 //!         .header("location", "/users/99")
 //!         .json(bytes)
 //! }
+//!
+//! // Return Status directly — astor wraps it into a response
+//! async fn delete_user(_req: Request) -> Status { Status::NoContent }
 //! ```
+//!
+//! ## Status codes are a type, not a number
+//!
+//! Every IANA-registered status code is a named [`Status`] variant.
+//! You cannot pass a raw integer where a status code goes — the compiler
+//! stops you. There are no magic numbers, no typos that silently send the
+//! wrong status, no `response(2040, bytes)` when you meant `204`.
+//!
+//! ```rust
+//! use astor::{Response, Status};
+//!
+//! // Named. The compiler knows these are correct.
+//! Response::status(Status::NoContent);   // 204
+//! Response::status(Status::NotFound);    // 404
+//!
+//! # let bytes: Vec<u8> = vec![];
+//! // The builder is the same discipline — explicit at every step.
+//! Response::builder()
+//!     .status(Status::Created)
+//!     .header("location", "/users/42")
+//!     .json(bytes);
+//! ```
+//!
+//! ## Key types
+//!
+//! | Type | Purpose |
+//! |---|---|
+//! | [`Router`] | Register routes — `Router::new().on(method, path, handler)` |
+//! | [`Server`] | Bind a port and serve — `Server::bind(addr).serve(router)` |
+//! | [`Request`] | Incoming request — method, path, headers, body, params |
+//! | [`Response`] | Outgoing response — shortcuts + typed builder |
+//! | [`Status`] | Every IANA status code as a named variant |
+//! | [`Method`] | Every HTTP method — RFC 9110 + WebDAV + PURGE |
+//! | [`ContentType`] | Common content-type values for [`Response::builder`] |
+//! | [`IntoResponse`] | Implement on your own types to return them from handlers |
 
 mod error;
 mod handler;

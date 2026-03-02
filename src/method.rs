@@ -3,13 +3,41 @@
 //! Covers RFC 9110 standard methods, WebDAV extensions (RFC 4918 / 4791 / 3253 / 5323),
 //! and `PURGE` used by nginx and Varnish for cache invalidation.
 //!
-//! Unknown method strings are rejected at the server level with `405 Method Not Allowed`
-//! before they ever reach a handler.
+//! Unknown method strings are rejected at the connection level before they
+//! ever reach a handler. The parser is case-sensitive per RFC 9110 §9.1 —
+//! `"get"` is not `"GET"`.
+//!
+//! # Registering routes
+//!
+//! ```rust,no_run
+//! # use astor::{Method, Request, Response, Router};
+//! # async fn handler(_: Request) -> Response { Response::text("") }
+//! Router::new()
+//!     .on(Method::Delete, "/users/{id}", handler)
+//!     .on(Method::Get,    "/users/{id}", handler)
+//!     .on(Method::Patch,  "/users/{id}", handler)
+//!     .on(Method::Post,   "/users",      handler);
+//! ```
+//!
+//! # Inspecting the method in a handler
+//!
+//! ```rust,no_run
+//! # use astor::{Method, Request, Response};
+//! async fn handler(req: Request) -> Response {
+//!     match req.method() {
+//!         Method::Get  => Response::text("GET"),
+//!         Method::Post => Response::text("POST"),
+//!         _            => Response::text("other"),
+//!     }
+//! }
+//! ```
 
 use std::fmt;
 use std::str::FromStr;
 
 /// A known HTTP method.
+///
+/// Variants are grouped by spec and listed alphabetically within each group.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Method {
     // RFC 9110 ─────────────────────────────────────────────────────────────────

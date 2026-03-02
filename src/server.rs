@@ -38,19 +38,60 @@ use crate::response::Response;
 use crate::router::Router;
 use crate::status::Status; // used in dispatch fallback (404)
 
+/// The HTTP server.
+///
+/// Binds a TCP port, accepts connections, and dispatches requests through a
+/// [`Router`]. Handles graceful shutdown automatically — no setup required.
+///
+/// ```rust,no_run
+/// use astor::{Method, Request, Response, Router, Server};
+///
+/// #[tokio::main]
+/// async fn main() {
+///     let app = Router::new()
+///         .on(Method::Get, "/", |_req: Request| async { Response::text("ok") });
+///
+///     Server::bind("0.0.0.0:3000").serve(app).await.unwrap();
+/// }
+/// ```
 pub struct Server {
     addr: SocketAddr,
 }
 
 impl Server {
-    /// Panics if `addr` is not a valid `host:port` string.
+    /// Configures the server to bind on `addr`.
+    ///
+    /// `addr` must be a valid `host:port` string:
+    /// - `"0.0.0.0:3000"` — all interfaces (standard for containerised services)
+    /// - `"127.0.0.1:3000"` — loopback only (useful when nginx is on the same host)
+    ///
+    /// The port is not actually bound until [`serve`][Server::serve] is called.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `addr` is not a valid socket address string.
     pub fn bind(addr: &str) -> Self {
         let addr: SocketAddr = addr.parse().expect("invalid socket address");
         Self { addr }
     }
 
-    /// Accepts connections and dispatches requests through `router`.
-    /// Returns after a full graceful shutdown.
+    /// Binds the port, starts accepting connections, and dispatches requests
+    /// through `router`.
+    ///
+    /// Blocks until the process receives `SIGTERM` or `Ctrl-C`. On shutdown:
+    /// 1. The accept loop stops — no new connections are accepted.
+    /// 2. In-flight requests are allowed to finish.
+    /// 3. The function returns.
+    ///
+    /// For Kubernetes: set `terminationGracePeriodSeconds` in your pod spec to
+    /// a value longer than your slowest request. If k8s sends `SIGKILL` before
+    /// the drain completes, in-flight requests are dropped — that is not
+    /// graceful shutdown.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] if the TCP listener cannot bind to the address, or if
+    /// a fatal accept error occurs.
     pub async fn serve(self, router: Router) -> Result<(), Error> {
         let listener = TcpListener::bind(self.addr).await?;
         let router = Arc::new(router);
