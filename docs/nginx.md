@@ -37,8 +37,23 @@ proxy_set_header   Connection "";
 nginx enforces the body size limit before the request reaches astor. astor
 does not check it. Without this, a client can stream an arbitrarily large body.
 
+`client_max_body_size` is inherited by `location` blocks, so you can set a
+global default and override it per route — no code changes in astor needed.
+
 ```nginx
-client_max_body_size 10m;  # adjust to your workload
+http {
+    client_max_body_size 1m;   # global default
+
+    server {
+        location /upload {
+            client_max_body_size 100m;  # this route allows larger bodies
+        }
+
+        location /api {
+            # inherits 1m from http block
+        }
+    }
+}
 ```
 
 ### Header size limit

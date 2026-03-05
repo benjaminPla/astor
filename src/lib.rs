@@ -93,26 +93,33 @@
 //!
 //! ## nginx
 //!
-//! astor is built to run behind nginx (or any reverse proxy). Two settings
-//! are **required** — astor trusts the proxy to have done this work and does
-//! not re-implement it.
+//! astor assumes nginx (or any reverse proxy) has already handled the items
+//! below. It does not re-implement any of them.
 //!
-//! **`proxy_buffering on`** (nginx default) — astor reads `Content-Length`-framed
-//! bodies only. Disable it and astor silently drops the body.
+//! | Required nginx setting | What breaks without it |
+//! |---|---|
+//! | `proxy_buffering on` | astor only reads `Content-Length`-framed bodies — chunked bodies are silently dropped |
+//! | `proxy_http_version 1.1` + `proxy_set_header Connection ""` | keep-alive pool collapses to one request per TCP connection |
+//! | `client_max_body_size` | clients can stream unlimited body bytes |
+//! | `client_header_buffer_size` / `large_client_header_buffers` | oversized headers are not rejected before reaching astor |
+//! | `client_body_timeout` / `client_header_timeout` | slow clients are not dropped; astor has no timeout logic |
+//! | method whitelist | nginx forwards any method string — `ANYTHING /path HTTP/1.1` reaches your handlers |
 //!
-//! **Method whitelist** — nginx forwards any method string by default.
-//! Filter before requests reach astor:
+//! Minimal example (two required lines shown — not a full config):
 //!
 //! ```nginx
-//! # Example — adjust to the methods your service handles.
-//! # Case-sensitive (~, not ~*): HTTP methods must be uppercase per RFC 9110.
-//! # astor does not normalise case and assumes nginx already enforces this.
+//! # body size — can be set per location block for per-route limits
+//! client_max_body_size 10m;
+//!
+//! # Example method whitelist — adjust to your service.
+//! # Case-sensitive (~, not ~*): RFC 9110 requires uppercase; astor does not normalise.
 //! if ($request_method !~ ^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$) {
 //!     return 405;
 //! }
 //! ```
 //!
-//! Full config + Kubernetes ingress example: [`docs/nginx.md`](https://github.com/benjaminPla/astor/blob/master/docs/nginx.md)
+//! Full config, Kubernetes ingress, and all required settings:
+//! **[`docs/nginx.md`](https://github.com/benjaminPla/astor/blob/master/docs/nginx.md)**
 //!
 //! ## Key types
 //!
