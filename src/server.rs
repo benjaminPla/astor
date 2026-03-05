@@ -7,12 +7,32 @@
 //! stream. A line-oriented parser over a tokio `BufReader` is enough.
 //! Pulling in hyper for that would be like hiring a bouncer for your living room.
 //!
-//! # `proxy_buffering on` — not optional
+//! # nginx requirements — not optional
+//!
+//! astor trusts nginx to have already done the work described here before
+//! forwarding. See `docs/nginx.md` in the repo for the full config reference.
+//!
+//! ## `proxy_buffering on`
 //!
 //! astor reads `Content-Length`-framed bodies only. `proxy_buffering on`
 //! (the nginx default) ensures the full body arrives with a `Content-Length`
 //! header. Set it to `off` and you get chunked bodies astor cannot parse.
 //! Don't do it.
+//!
+//! ## Method filtering
+//!
+//! nginx does not validate HTTP methods by default — `ANYTHING /path HTTP/1.1`
+//! gets forwarded. Configure a whitelist so unknown methods never reach astor:
+//!
+//! ```nginx
+//! if ($request_method !~ ^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$) {
+//!     return 405;
+//! }
+//! ```
+//!
+//! The regex is case-sensitive (`~`, not `~*`). astor's method parser is
+//! case-sensitive per RFC 9110 §9.1 and assumes nginx already enforces
+//! uppercase — it does not normalise case itself.
 //!
 //! # Keep-alive — nginx's business, not ours
 //!
@@ -147,7 +167,7 @@ async fn serve_connection(stream: TcpStream, router: Arc<Router>) -> Result<(), 
         }
         let line = line.trim_end();
         let mut parts = line.splitn(3, ' ');
-        let method_str = parts.next().unwrap_or("").to_uppercase();
+        let method_str = parts.next().unwrap_or("");
         let raw = parts.next().unwrap_or("/");
         let (path, query) = match raw.find('?') {
             Some(i) => (&raw[..i], &raw[i + 1..]),

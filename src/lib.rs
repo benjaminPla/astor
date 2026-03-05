@@ -91,6 +91,29 @@
 //!     .json(bytes);
 //! ```
 //!
+//! ## nginx
+//!
+//! astor is built to run behind nginx (or any reverse proxy). Two settings
+//! are **required** — astor trusts the proxy to have done this work and does
+//! not re-implement it.
+//!
+//! **`proxy_buffering on`** (nginx default) — astor reads `Content-Length`-framed
+//! bodies only. Disable it and astor silently drops the body.
+//!
+//! **Method whitelist** — nginx forwards any method string by default.
+//! Filter before requests reach astor:
+//!
+//! ```nginx
+//! # Example — adjust to the methods your service handles.
+//! # Case-sensitive (~, not ~*): HTTP methods must be uppercase per RFC 9110.
+//! # astor does not normalise case and assumes nginx already enforces this.
+//! if ($request_method !~ ^(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)$) {
+//!     return 405;
+//! }
+//! ```
+//!
+//! Full config + Kubernetes ingress example: [`docs/nginx.md`](https://github.com/benjaminPla/astor/blob/master/docs/nginx.md)
+//!
 //! ## Key types
 //!
 //! | Type | Purpose |

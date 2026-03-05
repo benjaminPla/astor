@@ -52,11 +52,12 @@ async fn get_user(req: Request) -> Response {
     Response::json(format!(r#"{{"id":"{id}"}}"#).into_bytes())
 }
 
-// Query strings pre-split from the path — req.query() → &str
+// Query params pre-parsed — req.query("key") → Option<&str>
 // GET /users?page=2&limit=10 still matches the /users route
 async fn list_users(req: Request) -> Response {
-    let qs = req.query(); // "page=2&limit=10" or ""
-    Response::json(format!(r#"{{"query":"{qs}","users":[]}}"#).into_bytes())
+    let page  = req.query("page").unwrap_or("1");
+    let limit = req.query("limit").unwrap_or("20");
+    Response::json(format!(r#"{{"page":{page},"limit":{limit},"users":[]}}"#).into_bytes())
 }
 
 // req.body() → &[u8] — parse with serde_json, simd-json, or anything else
