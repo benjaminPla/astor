@@ -13,6 +13,9 @@
 //!     // Path parameter — registered as {id} in the route
 //!     let id = req.param("id").unwrap_or("unknown");
 //!
+//!     // Query parameter — GET /users/42?verbose=true
+//!     let verbose = req.query("verbose").unwrap_or("false");
+//!
 //!     // Single header — case-insensitive
 //!     let auth = req.header("authorization");
 //!
@@ -21,7 +24,7 @@
 //!         return Response::status(Status::BadRequest);
 //!     }
 //!
-//!     Response::text(id)
+//!     Response::text(format!("{id} verbose={verbose}"))
 //! }
 //! ```
 
@@ -39,7 +42,8 @@ pub struct Request {
     pub(crate) method: Method,
     pub(crate) params: HashMap<String, String>,
     pub(crate) path: String,
-    pub(crate) query: String,
+    pub(crate) query: HashMap<String, String>,
+    pub(crate) raw_query: String,
 }
 
 impl Request {
@@ -49,9 +53,10 @@ impl Request {
         method: Method,
         params: HashMap<String, String>,
         path: String,
-        query: String,
+        raw_query: String,
     ) -> Self {
-        Self { body, headers, method, params, path, query }
+        let query = parse_query(&raw_query);
+        Self { body, headers, method, params, path, query, raw_query }
     }
 
     /// Returns the HTTP method.
@@ -62,21 +67,43 @@ impl Request {
     /// For a request URI of `/users/42?page=1` this returns `/users/42`.
     pub fn path(&self) -> &str { &self.path }
 
+    /// Looks up a single query parameter by name.
+    ///
+    /// Returns `None` if the key is absent. For duplicate keys (e.g.
+    /// `?tag=a&tag=b`) the last value wins — this is uncommon in REST APIs
+    /// and consistent with most framework behaviour.
+    ///
+    /// Unknown parameters from external services or tracing agents are kept
+    /// as-is; the handler simply ignores what it does not need.
+    ///
+    /// ```rust,no_run
+    /// # use astor::{Request, Response, Status};
+    /// async fn handler(req: Request) -> Response {
+    ///     // GET /search?q=rust&page=2
+    ///     let q    = req.query("q").unwrap_or("*");
+    ///     let page = req.query("page").unwrap_or("1");
+    ///     Response::text(format!("q={q} page={page}"))
+    /// }
+    /// ```
+    pub fn query(&self, key: &str) -> Option<&str> {
+        self.query.get(key).map(String::as_str)
+    }
+
     /// Returns the raw query string, without the leading `?`.
     ///
-    /// Empty string if the request had no query string.
-    /// Parse it with `serde_qs`, `form_urlencoded`, or a manual split —
-    /// astor does not interpret query parameters.
+    /// Empty string if the request had no query string. Use this when you
+    /// need the original bytes — e.g. HMAC signature verification against
+    /// an external API that signs the raw query string.
     ///
     /// ```rust,no_run
     /// # use astor::{Request, Response};
     /// async fn handler(req: Request) -> Response {
-    ///     // e.g. GET /search?q=rust&page=2
-    ///     let qs = req.query(); // "q=rust&page=2"
-    ///     Response::text(qs)
+    ///     // e.g. GET /hook?ts=1234&sig=abc
+    ///     let raw = req.raw_query(); // "ts=1234&sig=abc"
+    ///     Response::text(raw)
     /// }
     /// ```
-    pub fn query(&self) -> &str { &self.query }
+    pub fn raw_query(&self) -> &str { &self.raw_query }
 
     /// Returns all request headers as name-value pairs.
     ///
@@ -137,4 +164,25 @@ impl Request {
     pub fn param(&self, key: &str) -> Option<&str> {
         self.params.get(key).map(String::as_str)
     }
+}
+
+// ── Internal ──────────────────────────────────────────────────────────────────
+
+/// Parses `key=value&key2=value2` into a map.
+///
+/// - Pairs with no `=` are stored with an empty-string value.
+/// - Duplicate keys: last value wins.
+/// - No percent-decoding: nginx passes query strings to upstream as-is,
+///   so the raw bytes are already what the client sent.
+fn parse_query(raw: &str) -> HashMap<String, String> {
+    if raw.is_empty() {
+        return HashMap::new();
+    }
+    raw.split('&')
+        .filter_map(|pair| {
+            let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
+            if k.is_empty() { return None; }
+            Some((k.to_owned(), v.to_owned()))
+        })
+        .collect()
 }

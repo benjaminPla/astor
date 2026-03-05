@@ -22,16 +22,19 @@ use astor::{ContentType, Method, Request, Response, Router, Server, Status};
 async fn main() {
     let app = Router::new()
         .on(Method::Delete, "/users/{id}", delete_user)
-        .on(Method::Get,    "/healthz",    liveness)
-        .on(Method::Get,    "/readyz",     readiness)
-        .on(Method::Get,    "/redirect",   redirect)
-        .on(Method::Get,    "/users",      list_users)
-        .on(Method::Get,    "/users/{id}", get_user)
-        .on(Method::Get,    "/xml",        xml_response)
-        .on(Method::Patch,  "/users/{id}", update_user)
-        .on(Method::Post,   "/users",      create_user);
+        .on(Method::Get, "/healthz", liveness)
+        .on(Method::Get, "/readyz", readiness)
+        .on(Method::Get, "/redirect", redirect)
+        .on(Method::Get, "/users", list_users)
+        .on(Method::Get, "/users/{id}", get_user)
+        .on(Method::Get, "/xml", xml_response)
+        .on(Method::Patch, "/users/{id}", update_user)
+        .on(Method::Post, "/users", create_user);
 
-    Server::bind("0.0.0.0:3000").serve(app).await.expect("server error");
+    Server::bind("0.0.0.0:3000")
+        .serve(app)
+        .await
+        .expect("server error");
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -39,19 +42,24 @@ async fn main() {
 // Health endpoints are regular handlers. No magic, no built-in module.
 // Gate readiness on dependency health (db pools, downstream services, etc.)
 // if your app needs a warm-up period before serving traffic.
-async fn liveness(_req: Request) -> Response { Response::text("ok") }
-async fn readiness(_req: Request) -> Response { Response::text("ready") }
+async fn liveness(_req: Request) -> Response {
+    Response::text("ok")
+}
+async fn readiness(_req: Request) -> Response {
+    Response::text("ready")
+}
 
 // ── GET /users ────────────────────────────────────────────────────────────────
 //
-// req.query() returns the raw query string without the leading '?'.
-// Parse it with serde_qs, form_urlencoded, or split manually — astor
-// does not interpret query parameters, and the route matches regardless
-// of whether a query string is present.
+// req.query("key") looks up a single parsed query parameter.
+// Unknown params from external services or tracing agents pass through
+// untouched — the handler ignores what it doesn't need.
+// req.raw_query() gives the original string when you need it (e.g. HMAC sig).
 async fn list_users(req: Request) -> Response {
-    // "page=2&limit=10" or "" if no query string
-    let qs = req.query();
-    Response::json(format!(r#"{{"query":"{qs}","users":[]}}"#).into_bytes())
+    // GET /users?page=2&limit=10
+    let page = req.query("page").unwrap_or("1");
+    let limit = req.query("limit").unwrap_or("20");
+    Response::json(format!(r#"{{"page":{page},"limit":{limit},"users":[]}}"#).into_bytes())
 }
 
 // ── GET /users/{id} ───────────────────────────────────────────────────────────
@@ -96,9 +104,10 @@ async fn delete_user(_req: Request) -> Status {
 // Non-JSON body via ContentType enum.
 // Same pattern works for Html, Csv, Pdf, OctetStream, MsgPack, EventStream.
 async fn xml_response(_req: Request) -> Response {
-    Response::builder()
-        .status(Status::Ok)
-        .bytes(ContentType::Xml, b"<users><user id=\"1\"/></users>".to_vec())
+    Response::builder().status(Status::Ok).bytes(
+        ContentType::Xml,
+        b"<users><user id=\"1\"/></users>".to_vec(),
+    )
 }
 
 // ── GET /redirect ─────────────────────────────────────────────────────────────
